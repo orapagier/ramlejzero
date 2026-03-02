@@ -84,8 +84,15 @@ def get_logger(name: str = "agent") -> logging.Logger:
     return logging.getLogger(f"app.{name}")
 
 
-def _init_db():
+def _get_conn() -> sqlite3.Connection:
+    """Open audit DB connection with WAL mode for concurrent read stability."""
     conn = sqlite3.connect(_db_path)
+    conn.execute("PRAGMA journal_mode=WAL")
+    return conn
+
+
+def _init_db():
+    conn = _get_conn()
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS agent_runs (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -148,7 +155,7 @@ def log_router_run(user_id: int, user_message: str, selected_tools: list[str], m
     """Write a tool router call to the audit database."""
     if not _db_path:
         return
-    conn = sqlite3.connect(_db_path)
+    conn = _get_conn()
     try:
         conn.execute(
             """INSERT INTO router_logs
@@ -175,7 +182,7 @@ def log_agent_run(user_id: int, run_log: AgentRunLog):
     """Write a completed agent run to the audit database."""
     if not _db_path:
         return
-    conn = sqlite3.connect(_db_path)
+    conn = _get_conn()
     try:
         r = run_log.response
         cur = conn.execute(
@@ -225,20 +232,22 @@ def log_model_event(model_name: str, event: str, detail: str = ""):
     logger.warning(f"Model event | {model_name} | {event} | {detail}")
     if not _db_path:
         return
-    conn = sqlite3.connect(_db_path)
-    conn.execute(
-        "INSERT INTO model_events (timestamp, model_name, event, detail) VALUES (?,?,?,?)",
-        (datetime.utcnow().isoformat(), model_name, event, detail)
-    )
-    conn.commit()
-    conn.close()
+    conn = _get_conn()
+    try:
+        conn.execute(
+            "INSERT INTO model_events (timestamp, model_name, event, detail) VALUES (?,?,?,?)",
+            (datetime.utcnow().isoformat(), model_name, event, detail)
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def get_total_stats() -> dict:
     """Sum up runs and tokens across agent and router."""
     if not _db_path or not os.path.exists(_db_path):
         return {"runs": 0, "tokens": 0}
-    conn = sqlite3.connect(_db_path)
+    conn = _get_conn()
     try:
         # Agent tokens
         r1 = conn.execute("SELECT COUNT(*), SUM(input_tokens + output_tokens) FROM agent_runs").fetchone()
@@ -261,15 +270,17 @@ def get_recent_runs(limit: int = 20) -> list[dict]:
     """Fetch recent agent runs for the Web UI."""
     if not _db_path or not os.path.exists(_db_path):
         return []
-    conn = sqlite3.connect(_db_path)
+    conn = _get_conn()
     conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        """SELECT id, timestamp, user_id, user_message, model_used,
-                  iterations, input_tokens, output_tokens, duration_ms, success, error
-           FROM agent_runs ORDER BY id DESC LIMIT ?""",
-        (limit,)
-    ).fetchall()
-    conn.close()
+    try:
+        rows = conn.execute(
+            """SELECT id, timestamp, user_id, user_message, model_used,
+                      iterations, input_tokens, output_tokens, duration_ms, success, error
+               FROM agent_runs ORDER BY id DESC LIMIT ?""",
+            (limit,)
+        ).fetchall()
+    finally:
+        conn.close()
     return [dict(r) for r in rows]
 
 
@@ -277,13 +288,15 @@ def get_run_tools(run_id: int) -> list[dict]:
     """Fetch tool calls for a specific run."""
     if not _db_path:
         return []
-    conn = sqlite3.connect(_db_path)
+    conn = _get_conn()
     conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        "SELECT * FROM tool_calls WHERE run_id = ? ORDER BY id",
-        (run_id,)
-    ).fetchall()
-    conn.close()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM tool_calls WHERE run_id = ? ORDER BY id",
+            (run_id,)
+        ).fetchall()
+    finally:
+        conn.close()
     return [dict(r) for r in rows]
 
 
@@ -291,13 +304,15 @@ def get_model_events(limit: int = 50) -> list[dict]:
     """Fetch recent model events for the Web UI."""
     if not _db_path or not os.path.exists(_db_path):
         return []
-    conn = sqlite3.connect(_db_path)
+    conn = _get_conn()
     conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        "SELECT * FROM model_events ORDER BY id DESC LIMIT ?",
-        (limit,)
-    ).fetchall()
-    conn.close()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM model_events ORDER BY id DESC LIMIT ?",
+            (limit,)
+        ).fetchall()
+    finally:
+        conn.close()
     return [dict(r) for r in rows]
 
 
@@ -305,11 +320,13 @@ def get_recent_router_runs(limit: int = 50) -> list[dict]:
     """Fetch recent router (tiny LLM) calls for the Web UI."""
     if not _db_path or not os.path.exists(_db_path):
         return []
-    conn = sqlite3.connect(_db_path)
+    conn = _get_conn()
     conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        "SELECT * FROM router_logs ORDER BY id DESC LIMIT ?",
-        (limit,)
-    ).fetchall()
-    conn.close()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM router_logs ORDER BY id DESC LIMIT ?",
+            (limit,)
+        ).fetchall()
+    finally:
+        conn.close()
     return [dict(r) for r in rows]

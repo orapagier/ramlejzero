@@ -7,7 +7,7 @@ CONFIG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config")
 
 def _load(filename: str) -> dict:
     path = os.path.join(CONFIG_DIR, filename)
-    with open(path, "r") as f:
+    with open(path, "r", encoding='utf-8') as f:
         return yaml.safe_load(f)
 
 

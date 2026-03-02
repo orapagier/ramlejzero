@@ -18,6 +18,20 @@ import pytz
 
 logger = get_logger("agent")
 
+# ── System prompt template cache ──
+# The file is read once at startup. format_map() still runs per call
+# to inject the current time, location, and account — but disk I/O is eliminated.
+_PROMPT_TEMPLATE: str | None = None
+
+
+def _get_prompt_template() -> str:
+    global _PROMPT_TEMPLATE
+    if _PROMPT_TEMPLATE is None:
+        prompt_path = os.path.join(os.path.dirname(__file__), "config", "system_prompt.txt")
+        with open(prompt_path, "r", encoding="utf-8") as f:
+            _PROMPT_TEMPLATE = f.read()
+    return _PROMPT_TEMPLATE
+
 
 def _history_config() -> tuple[int, int]:
     agent_cfg = get_settings().get("agent", {})
@@ -38,9 +52,7 @@ def _build_system_prompt() -> str:
     tz = pytz.timezone(tz_name)
     now = datetime.now(tz).strftime("%A, %B %d, %Y, %I:%M %p")
 
-    prompt_path = os.path.join(os.path.dirname(__file__), "config", "system_prompt.txt")
-    with open(prompt_path, "r", encoding="utf-8") as f:
-        template = f.read()
+    template = _get_prompt_template()
 
     return template.format_map({
         "now": now,
@@ -321,25 +333,3 @@ async def _execute_tool(tool_name: str, tool_input: dict) -> ToolResult:
         return ToolResult.ok(text=str(raw))
     except Exception as e:
         return ToolResult.fail(str(e))
-
-
-
-if __name__ == "__main__":
-    import asyncio
-    import sys
-
-    async def run_cli():
-        if len(sys.argv) < 2:
-            print("Usage: python agent.py 'your task here'")
-            return
-        
-        task = sys.argv[1]
-        user_id = 9999  # System-level ID for background tasks
-        
-        print(f"--- Sentry Task Started: {task} ---")
-        # We call your existing run() function from agent.py
-        response = await run(user_id, task)
-        print(f"Result: {response.text}")
-        print(f"Tokens Used: {response.total_input_tokens + response.total_output_tokens}")
-
-    asyncio.run(run_cli())

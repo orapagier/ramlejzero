@@ -5,6 +5,7 @@ from core.config_loader import get_apis
 
 # ── Cached system info (resolved on first call) ──
 _system_cache: dict | None = None
+_cache_lock = asyncio.Lock()
 
 
 def _get_api_config():
@@ -27,44 +28,53 @@ async def _api_call(api_url: str, token: str, path: str, body: dict = None) -> d
 
 
 async def _ensure_system_cache() -> dict:
-    """Fetch and cache system info (username, OneDrive paths) on first call."""
+    """Fetch and cache system info (username, OneDrive paths) on first call.
+    Lock prevents concurrent requests from firing duplicate /system/info calls."""
     global _system_cache
+
+    # Fast path — already populated, no lock needed
     if _system_cache is not None:
         return _system_cache
 
-    api_url, token = _get_api_config()
-    try:
-        # Fetch both system info AND environment variables for accurate OneDrive detection
-        info_task = _api_call(api_url, token, "/system/info")
-        env_task = _api_call(api_url, token, "/system/env")
-        info, env = await asyncio.gather(info_task, env_task)
+    async with _cache_lock:
+        # Re-check inside lock in case another coroutine populated it while we waited
+        if _system_cache is not None:
+            return _system_cache
 
-        username = info.get("username", "")
-        home = f"C:\\Users\\{username}"
-        
-        # Detect active OneDrive path from environment
-        onedrive_path = env.get("OneDriveCommercial") or env.get("OneDriveConsumer") or env.get("OneDrive")
-        
-        if onedrive_path:
-            _system_cache = {
-                "username": username,
-                "home": home,
-                "onedrive": onedrive_path,
-                "desktop": onedrive_path + "\\Desktop",
-                "documents": onedrive_path + "\\Documents",
-                "downloads": home + "\\Downloads",
-            }
-        else:
-            _system_cache = {
-                "username": username,
-                "home": home,
-                "onedrive": home,
-                "desktop": home + "\\Desktop",
-                "documents": home + "\\Documents",
-                "downloads": home + "\\Downloads",
-            }
-    except Exception:
-        _system_cache = {}
+        api_url, token = _get_api_config()
+        try:
+            # Fetch both system info AND environment variables for accurate OneDrive detection
+            info_task = _api_call(api_url, token, "/system/info")
+            env_task = _api_call(api_url, token, "/system/env")
+            info, env = await asyncio.gather(info_task, env_task)
+
+            username = info.get("username", "")
+            home = f"C:\\Users\\{username}"
+
+            # Detect active OneDrive path from environment
+            onedrive_path = env.get("OneDriveCommercial") or env.get("OneDriveConsumer") or env.get("OneDrive")
+
+            if onedrive_path:
+                _system_cache = {
+                    "username": username,
+                    "home": home,
+                    "onedrive": onedrive_path,
+                    "desktop": onedrive_path + "\\Desktop",
+                    "documents": onedrive_path + "\\Documents",
+                    "downloads": home + "\\Downloads",
+                }
+            else:
+                _system_cache = {
+                    "username": username,
+                    "home": home,
+                    "onedrive": home,
+                    "desktop": home + "\\Desktop",
+                    "documents": home + "\\Documents",
+                    "downloads": home + "\\Downloads",
+                }
+        except Exception:
+            _system_cache = {}
+
     return _system_cache
 
 
@@ -174,20 +184,27 @@ def _build_tool_definition(cache: dict | None = None) -> dict:
 
 TOOL_DEFINITION = _build_tool_definition()
 
+# Lock to make the one-time TOOL_DEFINITION update atomic
+_tool_def_lock = asyncio.Lock()
+_tool_def_updated = False
+
 
 async def execute(method: str, path: str, body: str = "{}") -> str:
-    global TOOL_DEFINITION
+    global TOOL_DEFINITION, _tool_def_updated
 
     api_url, token = _get_api_config()
 
     # Ensure system cache is populated (first call fetches /system/info and /system/env)
     cache = await _ensure_system_cache()
 
-    # Update tool definition with resolved paths (once, after cache is ready)
-    if cache and cache.get("username") and "USERNAME:" not in TOOL_DEFINITION.get("description", ""):
-        new_def = _build_tool_definition(cache)
-        TOOL_DEFINITION.clear()
-        TOOL_DEFINITION.update(new_def)
+    # Update tool definition with resolved paths — once, atomically
+    if not _tool_def_updated and cache and cache.get("username"):
+        async with _tool_def_lock:
+            if not _tool_def_updated:
+                new_def = _build_tool_definition(cache)
+                TOOL_DEFINITION.clear()
+                TOOL_DEFINITION.update(new_def)
+                _tool_def_updated = True
 
     try:
         body_dict = json.loads(body) if body and body != "{}" else {}

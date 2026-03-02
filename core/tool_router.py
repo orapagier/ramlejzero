@@ -127,7 +127,8 @@ _REGEX_MAP: dict[str, list[str]] = {
         r"\bwhat\s+do\s+i\s+(like|dislike|prefer|want|need|use|have|own)\b",
         r"\bwhat\s+am\s+i\b",
         r"\bwho\s+am\s+i\b",
-        r"\bmy\s+(name|age|job|work|address|birthday|setup|server|phone)\b",
+        # NOTE: "server" intentionally excluded — matched by ssh_tool instead
+        r"\bmy\s+(name|age|job|work|address|birthday|setup|phone)\b",
         r"\btell\s+me\s+about\s+my(self)?\b",
         r"\bwhat\s+do\s+you\s+know\s+about\s+me\b",
     ],
