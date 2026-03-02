@@ -321,3 +321,25 @@ async def _execute_tool(tool_name: str, tool_input: dict) -> ToolResult:
         return ToolResult.ok(text=str(raw))
     except Exception as e:
         return ToolResult.fail(str(e))
+
+
+
+if __name__ == "__main__":
+    import asyncio
+    import sys
+
+    async def run_cli():
+        if len(sys.argv) < 2:
+            print("Usage: python agent.py 'your task here'")
+            return
+        
+        task = sys.argv[1]
+        user_id = 9999  # System-level ID for background tasks
+        
+        print(f"--- Sentry Task Started: {task} ---")
+        # We call your existing run() function from agent.py
+        response = await run(user_id, task)
+        print(f"Result: {response.text}")
+        print(f"Tokens Used: {response.total_input_tokens + response.total_output_tokens}")
+
+    asyncio.run(run_cli())
