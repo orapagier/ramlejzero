@@ -13,26 +13,36 @@ _lock = asyncio.Lock()
 
 def _get_state(api_name: str) -> RateLimitState:
     if not _states:
-        # Seed all configured limits from settings
+        # 1. Seed all models from models.yaml first (higher priority for specific limits)
+        models_cfg = get_models_config()
         settings = get_settings()
         limits = settings.get("rate_limits", {})
-        for name, cfg in limits.items():
-            max_calls = cfg.get("calls_per_minute", 60)
+        
+        for m in models_cfg.get("models", []):
+            if not m.get("enabled", True):
+                continue
+            name = m.get("name")
+            if not name:
+                continue
+                
+            # Priority: 
+            # 1. calls_per_minute defined in models.yaml entry
+            # 2. specific model name override in settings.yaml rate_limits
+            # 3. default 60
+            max_calls = m.get("calls_per_minute") or limits.get(name, {}).get("calls_per_minute", 60)
+            
             _states[name] = RateLimitState(
                 api_name=name,
                 max_calls_per_minute=max_calls
             )
         
-        # Also seed all enabled models from models.yaml
-        models_cfg = get_models_config()
-        for m in models_cfg.get("models", []):
-            if not m.get("enabled", True):
-                continue
-            name = m.get("name")
-            if name and name not in _states:
+        # 2. Seed remaining generic limits from settings.yaml
+        for name, cfg in limits.items():
+            if name not in _states:
+                max_calls = cfg.get("calls_per_minute", 60)
                 _states[name] = RateLimitState(
                     api_name=name,
-                    max_calls_per_minute=limits.get(name, {}).get("calls_per_minute", 60)
+                    max_calls_per_minute=max_calls
                 )
 
     if api_name not in _states:
@@ -102,24 +112,23 @@ def reload_limits():
     """Refresh max_calls_per_minute from config for all states."""
     settings = get_settings()
     limits = settings.get("rate_limits", {})
-    
-    # Update all existing manually defined limits
-    for name, cfg in limits.items():
-        max_calls = cfg.get("calls_per_minute", 60)
-        if name in _states:
-            _states[name].max_calls_per_minute = max_calls
-        else:
-            _states[name] = RateLimitState(api_name=name, max_calls_per_minute=max_calls)
-            
-    # Update model name limits
     models_cfg = get_models_config()
+    
+    # 1. Update from models.yaml
     for m in models_cfg.get("models", []):
         name = m.get("name")
         if not name or not m.get("enabled", True):
             continue
-        # Use specific model override if it exists, else default 60
-        max_calls = limits.get(name, {}).get("calls_per_minute", 60)
+        max_calls = m.get("calls_per_minute") or limits.get(name, {}).get("calls_per_minute", 60)
         if name in _states:
             _states[name].max_calls_per_minute = max_calls
         else:
             _states[name] = RateLimitState(api_name=name, max_calls_per_minute=max_calls)
+
+    # 2. Update remaining generic limits
+    for name, cfg in limits.items():
+        if name in _states and name not in [m.get("name") for m in models_cfg.get("models", [])]:
+            _states[name].max_calls_per_minute = cfg.get("calls_per_minute", 60)
+        elif name not in _states:
+            _states[name] = RateLimitState(api_name=name, max_calls_per_minute=cfg.get("calls_per_minute", 60))
+
