@@ -1,0 +1,1490 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ramlejzero</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+    }
+
+    header {
+      background: #1a1d2e;
+      border-bottom: 1px solid #2d3748;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      height: 56px;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-left: auto;
+    }
+
+    .tab {
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #718096;
+      border: none;
+      background: none;
+    }
+
+    .tab.active {
+      background: #2d3748;
+      color: #e2e8f0;
+    }
+
+    .badge {
+      background: #276749;
+      color: #9ae6b4;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+    }
+
+    main {
+      padding: 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .page {
+      display: none;
+    }
+
+    .page.active {
+      display: block;
+    }
+
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .stat {
+      background: #1a1d2e;
+      border: 1px solid #2d3748;
+      border-radius: 10px;
+      padding: 16px;
+    }
+
+    .stat-value {
+      font-size: 26px;
+      font-weight: 700;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: #718096;
+      margin-top: 2px;
+    }
+
+    .card {
+      background: #1a1d2e;
+      border: 1px solid #2d3748;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .card h2 {
+      font-size: 13px;
+      font-weight: 600;
+      color: #718096;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 14px;
+    }
+
+    .item {
+      background: #242740;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .item-name {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .item-meta {
+      font-size: 11px;
+      color: #4a5568;
+      margin-top: 4px;
+      font-family: monospace;
+      display: -webkit-box;
+      -webkit-line-clamp: 4;
+      line-clamp: 4;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 6px;
+    }
+
+    .tag {
+      background: #2d3748;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: monospace;
+      color: #81e6d9;
+    }
+
+    .btn {
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .btn-danger {
+      background: #742a2a;
+      color: #feb2b2;
+    }
+
+    .btn-success {
+      background: #276749;
+      color: #9ae6b4;
+    }
+
+    .btn-primary {
+      background: #2b6cb0;
+      color: #bee3f8;
+    }
+
+    .btn-sm {
+      padding: 4px 10px;
+      font-size: 11px;
+    }
+
+    .upload-zone {
+      border: 2px dashed #2d3748;
+      border-radius: 8px;
+      padding: 28px;
+      text-align: center;
+      cursor: pointer;
+    }
+
+    .upload-zone p {
+      color: #718096;
+      font-size: 13px;
+      margin-top: 6px;
+    }
+
+    .status-msg {
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-top: 10px;
+      display: none;
+    }
+
+    .status-msg.ok {
+      background: #276749;
+      color: #9ae6b4;
+      display: block;
+    }
+
+    .status-msg.err {
+      background: #742a2a;
+      color: #feb2b2;
+      display: block;
+    }
+
+    input[type=text] {
+      width: 100%;
+      background: #242740;
+      border: 1px solid #2d3748;
+      border-radius: 6px;
+      padding: 9px 12px;
+      color: #e2e8f0;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    th {
+      text-align: left;
+      padding: 8px 12px;
+      color: #718096;
+      font-weight: 500;
+      border-bottom: 1px solid #2d3748;
+    }
+
+    td {
+      padding: 8px 12px;
+      border-bottom: 1px solid #1a1d2e;
+    }
+
+    tr:hover td {
+      background: #1e2235;
+    }
+
+    .pill {
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .pill-ok {
+      background: #276749;
+      color: #9ae6b4;
+    }
+
+    .pill-warn {
+      background: #744210;
+      color: #fbd38d;
+    }
+
+    .pill-err {
+      background: #742a2a;
+      color: #feb2b2;
+    }
+
+    .progress-bar {
+      background: #2d3748;
+      border-radius: 4px;
+      height: 6px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: #4299e1;
+      border-radius: 4px;
+      transition: width 0.3s;
+    }
+
+    .model-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .model-container {
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #242740;
+    }
+
+    .model-item {
+      padding: 14px 16px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .model-item:hover {
+      background: #2d314d;
+    }
+
+    .model-item.active {
+      background: #1e2235;
+    }
+
+    .model-events-collapse {
+      display: none;
+      background: #0f1117;
+      border-top: 1px solid #2d3748;
+    }
+
+    .model-events-collapse.active {
+      display: block;
+    }
+
+    .model-priority {
+      background: #2d3748;
+      color: #a0aec0;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .model-body {
+      flex: 1;
+    }
+
+    .model-name {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .model-provider {
+      font-size: 11px;
+      color: #718096;
+    }
+
+    .model-stats {
+      display: flex;
+      gap: 16px;
+      margin-top: 6px;
+      font-size: 11px;
+      color: #718096;
+    }
+
+    .run-details-row {
+      display: none;
+      background: #0f1117;
+    }
+
+    .run-details-row.active {
+      display: table-row;
+    }
+
+    .run-details-content {
+      padding: 16px;
+      border-bottom: 1px solid #2d3748;
+    }
+
+    .tool-call-card {
+      background: #1a1d2e;
+      border: 1px solid #2d3748;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    .tool-call-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      border-bottom: 1px solid #2d3748;
+    }
+
+    .config-file-tab.py-file {
+      color: #81e6d9;
+    }
+
+    .config-file-tab.py-file.active {
+      background: #1a3a3a;
+      color: #81e6d9;
+    }
+
+    /* ── Auth / Integrations ── */
+    .integration-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 16px;
+    }
+
+    .integration-card {
+      background: #242740;
+      border: 1px solid #2d3748;
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      transition: border-color 0.2s;
+    }
+
+    .integration-card.connected {
+      border-color: #276749;
+    }
+
+    .integration-card.error {
+      border-color: #742a2a;
+    }
+
+    .integration-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .integration-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .integration-icon.microsoft {
+      background: #1a1d2e;
+    }
+
+    .integration-icon.google {
+      background: #1a1d2e;
+    }
+
+    .integration-icon.telegram {
+      background: #1a1d2e;
+    }
+
+    .integration-icon.facebook {
+      background: #1a1d2e;
+    }
+
+    .integration-title {
+      font-weight: 700;
+      font-size: 15px;
+    }
+
+    .integration-subtitle {
+      font-size: 11px;
+      color: #718096;
+      margin-top: 2px;
+    }
+
+    .integration-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: #1a1d2e;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .status-dot.connected {
+      background: #48bb78;
+      box-shadow: 0 0 6px #48bb78;
+    }
+
+    .status-dot.disconnected {
+      background: #718096;
+    }
+
+    .status-dot.error {
+      background: #f56565;
+      box-shadow: 0 0 6px #f56565;
+    }
+
+    .status-dot.loading {
+      background: #ed8936;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.3;
+      }
+    }
+
+    .integration-meta {
+      font-size: 11px;
+      color: #4a5568;
+      font-family: monospace;
+    }
+
+    .integration-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .scopes-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .scope-tag {
+      background: #1a1d2e;
+      border: 1px solid #2d3748;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-family: monospace;
+      color: #81e6d9;
+    }
+
+    .auth-modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .auth-modal-overlay.active {
+      display: flex;
+    }
+
+    .auth-modal {
+      background: #1a1d2e;
+      border: 1px solid #2d3748;
+      border-radius: 14px;
+      padding: 28px;
+      max-width: 480px;
+      width: 100%;
+      margin: 20px;
+    }
+
+    .auth-modal h3 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .auth-modal p {
+      font-size: 13px;
+      color: #a0aec0;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+
+    .auth-url-box {
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 12px;
+      font-family: monospace;
+      font-size: 11px;
+      color: #81e6d9;
+      word-break: break-all;
+      margin-bottom: 16px;
+      max-height: 80px;
+      overflow-y: auto;
+    }
+
+    .auth-modal-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>🤖 ramlejzero</h1>
+    <div class="tabs">
+      <button class="tab active" onclick="showPage('overview')">Overview</button>
+      <button class="tab" onclick="showPage('tools')">Tools</button>
+      <button class="tab" onclick="showPage('models')">Models</button>
+      <button class="tab" onclick="showPage('logs')">Logs</button>
+      <button class="tab" onclick="showPage('config')">Config</button>
+      <button class="tab" onclick="showPage('auth')">Auth</button>
+      <button class="tab" onclick="showPage('limits')">Rate Limits</button>
+    </div>
+    <span class="badge" id="health-badge">● Online</span>
+  </header>
+
+  <main>
+    <div class="page active" id="page-overview">
+      <div class="stat-row">
+        <div class="stat">
+          <div class="stat-value" id="s-tools">—</div>
+          <div class="stat-label">Active Tools</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="s-models">—</div>
+          <div class="stat-label">Available Models</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="s-runs">—</div>
+          <div class="stat-label">Total Runs</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="s-tokens">—</div>
+          <div class="stat-label">Total Tokens Used</div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Recent Runs</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Message</th>
+              <th>Model</th>
+              <th>Iterations</th>
+              <th>Tokens</th>
+              <th>Duration</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="runs-table"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="page" id="page-tools">
+      <div class="card">
+        <h2>Add New Tool</h2>
+        <div class="upload-zone" onclick="document.getElementById('tool-file').click()">
+          <div style="font-size:28px">📦</div>
+          <p>Drop a <strong>.py</strong> tool file here or click to browse</p>
+          <p>File must export <code>TOOL_DEFINITION</code> and <code>async def execute()</code></p>
+          <input type="file" id="tool-file" accept=".py" onchange="uploadTool(this.files[0])">
+        </div>
+        <div class="status-msg" id="upload-msg"></div>
+      </div>
+      <div style="display:flex; gap:16px;">
+        <div style="width:280px; flex-shrink:0;">
+          <div class="card" style="margin-bottom:0;">
+            <h2>Active Tools</h2>
+            <input type="text" placeholder="Search tools..." oninput="filterTools(this.value)">
+            <div id="tools-list"></div>
+          </div>
+        </div>
+        <div style="flex:1;">
+          <div class="card" style="margin-bottom:0; display:flex; flex-direction:column;" id="tool-editor-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+              <h2 id="tool-editor-title" style="margin-bottom:0;">SELECT A TOOL TO EDIT</h2>
+              <div style="display:flex; gap:8px;" id="tool-editor-actions" style="display:none;">
+                <button class="btn btn-primary btn-sm" onclick="saveToolSource()" id="tool-save-btn">💾 Save &
+                  Reload</button>
+              </div>
+            </div>
+            <div class="editor-container" style="border:none; padding:0; background:transparent;">
+              <div id="tool-editor" style="width:100%; border:1px solid #2d3748; border-radius:8px;"></div>
+            </div>
+            <div id="tool-status-msg" class="status-msg"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="page-models">
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+          <h2 style="margin-bottom:0;">Model Status & Fallback Chain</h2>
+          <button class="btn btn-primary btn-sm" onclick="loadModels()">↺ Refresh Status</button>
+        </div>
+        <p style="font-size:12px;color:#718096;margin-bottom:14px">Models are tried in priority order. Click a model to
+          see its recent events.</p>
+        <div class="model-grid" id="models-list"></div>
+      </div>
+    </div>
+
+    <div class="page" id="page-logs">
+      <div class="card">
+        <h2>Agent Run Logs</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>User</th>
+              <th>Message</th>
+              <th>Model</th>
+              <th>Iter</th>
+              <th>Tokens In</th>
+              <th>Tokens Out</th>
+              <th>ms</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="logs-table"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="page" id="page-limits">
+      <div class="card">
+        <h2>API Rate Limit Monitor</h2>
+        <p style="font-size:12px;color:#718096;margin-bottom:14px">Edit limits in <code>config/settings.yaml</code>
+          under <code>rate_limits</code>. Changes take effect after config reload.</p>
+        <div id="limits-list"></div>
+      </div>
+      <div style="text-align:right">
+        <button class="btn btn-primary" onclick="reloadConfig()">↺ Reload Config</button>
+      </div>
+    </div>
+
+    <div class="page" id="page-config">
+      <div style="display:flex; gap:16px; margin-bottom:16px;">
+        <div class="card" style="width:200px; margin-bottom:0;">
+          <h2>Config Files</h2>
+          <div id="config-files-list">
+            <div class="tab config-file-tab active" onclick="loadConfigFile('settings.yaml', this)">settings.yaml</div>
+            <div class="tab config-file-tab" onclick="loadConfigFile('apis.yaml', this)">apis.yaml</div>
+            <div class="tab config-file-tab" onclick="loadConfigFile('models.yaml', this)">models.yaml</div>
+            <div class="tab config-file-tab" onclick="loadConfigFile('system_prompt.txt', this)">system_prompt.txt</div>
+            <div class="tab config-file-tab py-file" onclick="loadConfigFile('tool_router.py', this)">tool_router.py
+            </div>
+          </div>
+        </div>
+        <div class="card" style="flex:1; margin-bottom:0; display:flex; flex-direction:column;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <h2 id="config-editor-title" style="margin-bottom:0;">EDITING: settings.yaml</h2>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-primary btn-sm" onclick="saveConfigFile()">💾 Save Changes</button>
+              <button class="btn btn-success btn-sm" onclick="reloadConfig()">↺ Apply Now</button>
+            </div>
+          </div>
+          <div class="editor-container" style="border:none; padding:0; background:transparent;">
+            <div id="config-editor" style="width:100%; border:1px solid #2d3748; border-radius:8px;"></div>
+          </div>
+          <div id="config-status-msg" class="status-msg"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="page-auth">
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <h2 style="margin-bottom:0;">Service Integrations</h2>
+          <button class="btn btn-primary btn-sm" onclick="loadAuth()">↺ Refresh</button>
+        </div>
+        <p style="font-size:12px; color:#718096;">Connect external accounts so your agent can act on your behalf. Tokens
+          are stored encrypted on disk and auto-refresh silently.</p>
+      </div>
+
+      <div class="integration-grid" id="integration-grid">
+        </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h2>Token Files on Disk</h2>
+        <p style="font-size:12px;color:#718096;margin-bottom:14px;">Raw token storage paths as configured in
+          <code>apis.yaml</code>. Deleting a file forces re-auth on next use.</p>
+        <div id="token-files-list">
+          <div style="color:#4a5568; font-size:12px;">Loading...</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <div class="auth-modal-overlay" id="ms-auth-modal">
+    <div class="auth-modal">
+      <h3>🔐 Connect Microsoft Account</h3>
+      <p>Click the button below to open Microsoft's login page. After approving, you'll be redirected back automatically
+        and the token will be saved.</p>
+      <div class="auth-url-box" id="ms-auth-url-box">Generating URL...</div>
+      <div class="auth-modal-actions">
+        <button class="btn" style="background:#2d3748;color:#e2e8f0;" onclick="closeMsModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="openMsAuthUrl()">🔗 Open Login Page</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="auth-modal-overlay" id="fb-auth-modal">
+    <div class="auth-modal">
+      <h3>📘 Connect Facebook Account</h3>
+      <p>Click the button below to open Facebook's login page. After approving permissions for your pages, you'll be
+        redirected back automatically and the token will be saved (~60 day token).</p>
+      <div class="auth-url-box" id="fb-auth-url-box">Generating URL...</div>
+      <div class="auth-modal-actions">
+        <button class="btn" style="background:#2d3748;color:#e2e8f0;" onclick="closeFbModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="openFbAuthUrl()">🔗 Open Login Page</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="auth-modal-overlay" id="google-auth-modal">
+    <div class="auth-modal">
+      <h3>🔐 Connect Google Account</h3>
+      <p>Click the button below to open Google's login page. After approving, you'll be redirected back automatically
+        and the token will be saved.</p>
+      <div class="auth-url-box" id="google-auth-url-box">Generating URL...</div>
+      <div class="auth-modal-actions">
+        <button class="btn" style="background:#2d3748;color:#e2e8f0;" onclick="closeGoogleModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="openGoogleAuthUrl()">🔗 Open Login Page</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.36.2/ace.js"></script>
+  <script>
+    let allTools = [], allRuns = [];
+    let toolAce, configAce;
+    let activeToolModule = null;
+    let msAuthUrl = '';
+    let googleAuthUrl = '';
+
+    window.addEventListener('DOMContentLoaded', () => {
+      toolAce = ace.edit("tool-editor");
+      toolAce.setTheme("ace/theme/tomorrow_night_eighties");
+      toolAce.session.setMode("ace/mode/python");
+      toolAce.setOptions({ wrap: true, fontSize: "14px", showPrintMargin: false, fontFamily: "monospace", minLines: 10, maxLines: Infinity });
+
+      configAce = ace.edit("config-editor");
+      configAce.setTheme("ace/theme/tomorrow_night_eighties");
+      configAce.session.setMode("ace/mode/yaml");
+      configAce.setOptions({ wrap: true, fontSize: "14px", showPrintMargin: false, fontFamily: "monospace", minLines: 15, maxLines: Infinity });
+    });
+
+    function showPage(name) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('page-' + name).classList.add('active');
+
+      const tabs = Array.from(document.querySelectorAll('header .tab'));
+      const activeTab = tabs.find(t => t.getAttribute('onclick')?.includes(`'${name}'`));
+      if (activeTab) activeTab.classList.add('active');
+
+      if (name === 'tools') { setTimeout(() => toolAce.resize(), 50); }
+      if (name === 'config') { setTimeout(() => configAce.resize(), 50); }
+      if (name === 'models') loadModels();
+      if (name === 'logs') loadLogs();
+      if (name === 'limits') loadLimits();
+      if (name === 'auth') loadAuth();
+      if (name === 'config') loadConfigFile('settings.yaml', document.querySelector('.config-file-tab'));
+    }
+
+    // ─────────────────────────────────────────
+    // AUTH / INTEGRATIONS
+    // ─────────────────────────────────────────
+
+    const INTEGRATIONS_DEF = [
+      {
+        id: 'microsoft',
+        label: 'Microsoft',
+        subtitle: 'OneDrive, Outlook, Graph API',
+        icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21" width="22" height="22"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>`,
+        iconClass: 'microsoft',
+        scopes: ['Files.ReadWrite', 'offline_access', 'User.Read'],
+        connectFn: connectMicrosoft,
+        disconnectFn: disconnectMicrosoft,
+      },
+      {
+        id: 'google',
+        label: 'Google',
+        subtitle: 'Gmail, Calendar, Drive',
+        icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="24" height="24"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>`,
+        iconClass: 'google',
+        scopes: ['calendar', 'gmail.modify', 'drive'],
+        connectFn: connectGoogle,
+        disconnectFn: disconnectGoogle,
+      },
+      {
+        id: 'facebook',
+        label: 'Facebook',
+        subtitle: 'Pages, Messenger, Insights',
+        icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path fill="#1877F2" d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.267h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>`,
+        iconClass: 'facebook',
+        scopes: ['pages_manage_posts', 'pages_messaging', 'pages_manage_engagement', 'read_insights'],
+        connectFn: connectFacebook,
+        disconnectFn: disconnectFacebook,
+      },
+    ];
+
+    async function loadAuth() {
+      let statuses = {};
+      try {
+        statuses = await apiFetch('/api/auth/status');
+      } catch (e) {
+        statuses = {};
+      }
+
+      const grid = document.getElementById('integration-grid');
+      grid.innerHTML = INTEGRATIONS_DEF.map(integ => {
+        const s = statuses[integ.id] || { connected: false };
+        const cardClass = s.connected ? 'connected' : (s.error ? 'error' : '');
+        const dotClass = s.connected ? 'connected' : (s.error ? 'error' : 'disconnected');
+        const statusText = s.connected
+          ? `Connected${s.account ? ' · ' + s.account : ''}${s.expires_in ? ' · expires in ' + s.expires_in : ''}`
+          : (s.error ? 'Error: ' + s.error : 'Not connected');
+
+        const scopesHtml = integ.scopes.map(sc => `<span class="scope-tag">${sc}</span>`).join('');
+
+        const actionBtns = s.connected
+          ? `<button class="btn btn-danger btn-sm" onclick="${integ.disconnectFn.name}()">🔌 Disconnect</button>
+             <button class="btn btn-sm" style="background:#2d3748;color:#a0aec0;" onclick="${integ.connectFn.name}()">↺ Re-auth</button>`
+          : `<button class="btn btn-success btn-sm" onclick="${integ.connectFn.name}()">🔗 Connect</button>`;
+
+        return `
+          <div class="integration-card ${cardClass}">
+            <div class="integration-header">
+              <div class="integration-icon ${integ.iconClass}">${integ.icon}</div>
+              <div>
+                <div class="integration-title">${integ.label}</div>
+                <div class="integration-subtitle">${integ.subtitle}</div>
+              </div>
+            </div>
+            <div class="integration-status">
+              <div class="status-dot ${dotClass}"></div>
+              <span style="color:${s.connected ? '#9ae6b4' : (s.error ? '#feb2b2' : '#718096')}">${statusText}</span>
+            </div>
+            <div>
+              <div style="font-size:10px; color:#4a5568; text-transform:uppercase; margin-bottom:6px;">Required Scopes</div>
+              <div class="scopes-list">${scopesHtml}</div>
+            </div>
+            <div class="integration-actions">${actionBtns}</div>
+          </div>
+        `;
+      }).join('');
+
+      // Token files section
+      try {
+        const files = await apiFetch('/api/auth/token-files');
+        const listEl = document.getElementById('token-files-list');
+        if (!files || files.length === 0) {
+          listEl.innerHTML = '<div style="color:#4a5568;font-size:12px;">No token files found.</div>';
+        } else {
+          listEl.innerHTML = files.map(f => `
+            <div class="item">
+              <div>
+                <div class="item-name" style="font-size:13px; font-family:monospace;">${f.path}</div>
+                <div class="item-meta">${f.size_bytes} bytes · modified ${f.modified}</div>
+              </div>
+              <button class="btn btn-danger btn-sm" onclick="deleteTokenFile('${f.service}')">🗑 Delete</button>
+            </div>
+          `).join('');
+        }
+      } catch (e) {
+        document.getElementById('token-files-list').innerHTML = `<div style="color:#f56565;font-size:12px;">Could not load token files.</div>`;
+      }
+    }
+
+    // ── Microsoft ──
+
+    async function connectMicrosoft() {
+      try {
+        const data = await apiFetch('/api/auth/microsoft/url');
+        msAuthUrl = data.auth_url;
+        document.getElementById('ms-auth-url-box').textContent = msAuthUrl;
+        document.getElementById('ms-auth-modal').classList.add('active');
+      } catch (e) {
+        alert('Failed to get auth URL: ' + e.message);
+      }
+    }
+
+    function openMsAuthUrl() {
+      if (msAuthUrl) window.open(msAuthUrl, '_blank');
+    }
+
+    function closeMsModal() {
+      document.getElementById('ms-auth-modal').classList.remove('active');
+      setTimeout(loadAuth, 1500);
+    }
+
+    async function disconnectMicrosoft() {
+      if (!confirm('Disconnect Microsoft account? The agent will no longer be able to access OneDrive until you reconnect.')) return;
+      try {
+        const r = await fetch('/api/auth/microsoft/disconnect', { method: 'DELETE' });
+        if (r.ok) loadAuth();
+        else alert('Disconnect failed: ' + await r.text());
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    // ── Google ──
+
+    async function connectGoogle() {
+      try {
+        const data = await apiFetch('/api/auth/google/url');
+        googleAuthUrl = data.auth_url;
+        document.getElementById('google-auth-url-box').textContent = googleAuthUrl;
+        document.getElementById('google-auth-modal').classList.add('active');
+      } catch (e) {
+        alert('Failed to get Google auth URL: ' + e.message);
+      }
+    }
+
+    function openGoogleAuthUrl() {
+      if (googleAuthUrl) window.open(googleAuthUrl, '_blank');
+    }
+
+    function closeGoogleModal() {
+      document.getElementById('google-auth-modal').classList.remove('active');
+      setTimeout(loadAuth, 1500);
+    }
+
+    async function disconnectGoogle() {
+      if (!confirm('Disconnect Google account? The agent will no longer be able to access Gmail, Calendar, or Drive until you reconnect.')) return;
+      try {
+        const r = await fetch('/api/auth/google/disconnect', { method: 'DELETE' });
+        if (r.ok) loadAuth();
+        else alert('Disconnect failed: ' + await r.text());
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    // ── Facebook ──
+    let facebookAuthUrl = '';
+
+    async function connectFacebook() {
+      try {
+        const data = await apiFetch('/api/auth/facebook/url');
+        facebookAuthUrl = data.auth_url;
+        document.getElementById('fb-auth-url-box').textContent = facebookAuthUrl;
+        document.getElementById('fb-auth-modal').classList.add('active');
+      } catch (e) {
+        alert('Failed to get Facebook auth URL: ' + e.message);
+      }
+    }
+
+    function openFbAuthUrl() {
+      if (facebookAuthUrl) window.open(facebookAuthUrl, '_blank');
+    }
+
+    function closeFbModal() {
+      document.getElementById('fb-auth-modal').classList.remove('active');
+      setTimeout(loadAuth, 1500);
+    }
+
+    async function disconnectFacebook() {
+      if (!confirm('Disconnect Facebook account? The agent will no longer be able to manage your pages until you reconnect.')) return;
+      try {
+        const r = await fetch('/api/auth/facebook/disconnect', { method: 'DELETE' });
+        if (r.ok) loadAuth();
+        else alert('Disconnect failed: ' + await r.text());
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    // ── Shared token file delete ──
+
+    async function deleteTokenFile(service) {
+      if (!confirm(`Delete token file for "${service}"? The agent will require re-auth.`)) return;
+      try {
+        const r = await fetch(`/api/auth/token-files/${service}`, { method: 'DELETE' });
+        if (r.ok) loadAuth();
+        else alert('Failed: ' + await r.text());
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    // ─────────────────────────────────────────
+    // CONFIG
+    // ─────────────────────────────────────────
+    let activeConfigFile = 'settings.yaml';
+
+    async function loadConfigFile(filename, element) {
+      activeConfigFile = filename;
+      document.querySelectorAll('.config-file-tab').forEach(t => t.classList.remove('active'));
+      element.classList.add('active');
+      document.getElementById('config-editor-title').textContent = `EDITING: ${filename}`;
+      configAce.setValue('Loading...', -1);
+
+      if (filename.endsWith('.py')) {
+        configAce.session.setMode("ace/mode/python");
+      } else if (filename.endsWith('.txt')) {
+        configAce.session.setMode("ace/mode/text");
+      } else {
+        configAce.session.setMode("ace/mode/yaml");
+      }
+
+      try {
+        const data = await apiFetch(`/api/config/${filename}`);
+        configAce.setValue(data.content, -1);
+        configAce.resize();
+      } catch (e) {
+        configAce.setValue(`Error loading file: ${e.message}`, -1);
+      }
+    }
+
+    async function saveConfigFile() {
+      const content = configAce.getValue();
+      const msg = document.getElementById('config-status-msg');
+      msg.className = 'status-msg';
+      msg.textContent = 'Saving...';
+      msg.style.display = 'block';
+      try {
+        const r = await fetch(`/api/config/${activeConfigFile}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content })
+        });
+        if (r.ok) {
+          msg.className = 'status-msg ok';
+          msg.textContent = '✅ Config saved successfully!';
+          setTimeout(() => { msg.style.display = 'none'; }, 3000);
+        } else {
+          const d = await r.json();
+          msg.className = 'status-msg err';
+          msg.textContent = `❌ Error: ${d.detail}`;
+        }
+      } catch (e) {
+        msg.className = 'status-msg err';
+        msg.textContent = `❌ ${e.message}`;
+      }
+    }
+
+    // ─────────────────────────────────────────
+    // SHARED UTILS
+    // ─────────────────────────────────────────
+    async function apiFetch(path) {
+      const r = await fetch(path);
+      if (!r.ok) throw new Error(await r.text());
+      return r.json();
+    }
+
+    // ─────────────────────────────────────────
+    // OVERVIEW
+    // ─────────────────────────────────────────
+    async function loadOverview() {
+      try {
+        const [health, runs, models] = await Promise.all([
+          apiFetch('/health'),
+          apiFetch('/api/logs/runs?limit=10'),
+          apiFetch('/api/models')
+        ]);
+        document.getElementById('s-tools').textContent = health.tools;
+        document.getElementById('s-models').textContent = models.filter(m => m.status === 'available').length;
+        document.getElementById('s-runs').textContent = runs.length;
+        const tokens = runs.reduce((s, r) => s + (r.input_tokens || 0) + (r.output_tokens || 0), 0);
+        document.getElementById('s-tokens').textContent = tokens.toLocaleString();
+        allRuns = runs;
+        renderRunsTable(runs, 'runs-table');
+      } catch (e) {
+        document.getElementById('health-badge').textContent = '● Offline';
+        document.getElementById('health-badge').style.background = '#742a2a';
+      }
+    }
+
+    function renderRunsTable(runs, tableId) {
+      const tb = document.getElementById(tableId);
+      const isDetailed = tableId === 'logs-table';
+      tb.innerHTML = runs.map(r => {
+        if (isDetailed) {
+          return `
+            <tr style="cursor:pointer" onclick="toggleRunDetails(${r.id})">
+              <td>${new Date(r.timestamp).toLocaleTimeString()}</td>
+              <td><code>${r.user_id}</code></td>
+              <td style="max-width:300px;word-break:break-word;overflow-wrap:anywhere;" title="${r.user_message || ''}">${r.user_message || ''}</td>
+              <td><code style="font-size:11px">${r.model_used?.split('/').pop() || '—'}</code></td>
+              <td>${r.iterations}</td>
+              <td>${r.input_tokens || 0}</td>
+              <td>${r.output_tokens || 0}</td>
+              <td>${r.duration_ms ? r.duration_ms.toFixed(0) : '—'}</td>
+              <td><span class="pill ${r.success ? 'pill-ok' : 'pill-err'}">${r.success ? 'OK' : 'Err'}</span></td>
+            </tr>
+            <tr class="run-details-row" id="details-${r.id}">
+              <td colspan="9">
+                <div class="run-details-content" id="content-${r.id}">
+                  <div style="color:#718096;text-align:center;padding:20px">Loading tool calls...</div>
+                </div>
+              </td>
+            </tr>
+          `;
+        } else {
+          return `
+            <tr>
+              <td>${new Date(r.timestamp).toLocaleTimeString()}</td>
+              <td style="max-width:300px;word-break:break-word;overflow-wrap:anywhere;" title="${r.user_message || ''}">${r.user_message || ''}</td>
+              <td><code style="font-size:11px">${r.model_used?.split('/').pop() || '—'}</code></td>
+              <td>${r.iterations}</td>
+              <td>${(r.input_tokens || 0) + (r.output_tokens || 0)}</td>
+              <td>${r.duration_ms ? r.duration_ms.toFixed(0) + 'ms' : '—'}</td>
+              <td><span class="pill ${r.success ? 'pill-ok' : 'pill-err'}">${r.success ? 'OK' : 'Error'}</span></td>
+            </tr>
+          `;
+        }
+      }).join('');
+    }
+
+    async function toggleRunDetails(runId) {
+      const row = document.getElementById(`details-${runId}`);
+      const content = document.getElementById(`content-${runId}`);
+      if (row.classList.contains('active')) { row.classList.remove('active'); return; }
+      document.querySelectorAll('.run-details-row.active').forEach(r => r.classList.remove('active'));
+      row.classList.add('active');
+      content.innerHTML = '<div style="color:#718096;text-align:center;padding:20px">Loading tool calls...</div>';
+      try {
+        const tools = await apiFetch(`/api/logs/runs/${runId}/tools`);
+        if (!tools || tools.length === 0) {
+          content.innerHTML = '<div style="color:#718096;text-align:center;padding:20px">No tool calls made during this run.</div>';
+          return;
+        }
+        content.innerHTML = `
+          <div style="font-size:11px; font-weight:700; color:#718096; text-transform:uppercase; margin-bottom:12px;">Iteration History (${tools.length} calls)</div>
+          ${tools.map((t, idx) => {
+          let params = t.input_params;
+          try { params = JSON.stringify(JSON.parse(t.input_params), null, 2); } catch (e) { }
+          return `
+              <div class="tool-call-card">
+                <div class="tool-call-header">
+                  <div>
+                    <span style="color:#718096; font-size:11px; margin-right:8px;">#${idx + 1}</span>
+                    <strong style="color:#81e6d9">${t.tool_name}</strong>
+                  </div>
+                  <div>
+                    <span class="pill ${t.success ? 'pill-ok' : 'pill-err'}" style="font-size:9px">${t.success ? 'SUCCESS' : 'FAILED'}</span>
+                    <span style="color:#718096; font-size:10px; margin-left:8px">${t.duration_ms.toFixed(0)}ms</span>
+                  </div>
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:8px;">
+                  <div>
+                    <div style="font-size:10px; color:#4a5568; text-transform:uppercase; margin-bottom:4px">Arguments</div>
+                    <pre style="background:#0f1117; padding:8px; border-radius:4px; font-size:11px; color:#e2e8f0; white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere;">${params}</pre>
+                  </div>
+                  <div>
+                    <div style="font-size:10px; color:#4a5568; text-transform:uppercase; margin-bottom:4px">Result / Error</div>
+                    <pre style="background:#0f1117; padding:8px; border-radius:4px; font-size:11px; color:${t.success ? '#9ae6b4' : '#feb2b2'}; white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere; max-height:300px; overflow-y:auto;">${t.error || t.result || 'No output'}</pre>
+                  </div>
+                </div>
+              </div>
+            `;
+        }).join('')}
+        `;
+      } catch (e) {
+        content.innerHTML = `<div style="color:#f56565;text-align:center;padding:20px">Error loading details: ${e.message}</div>`;
+      }
+    }
+
+    // ─────────────────────────────────────────
+    // TOOLS
+    // ─────────────────────────────────────────
+
+    async function loadTools() {
+      allTools = await apiFetch('/api/tools');
+      renderTools(allTools);
+      if (!activeToolModule && allTools.length > 0) loadToolSource(allTools[0].module);
+    }
+
+    function renderTools(tools) {
+      document.getElementById('tools-list').innerHTML = tools.map(t => `
+        <div class="item ${activeToolModule === t.module ? 'active' : ''}" onclick="loadToolSource('${t.module}')">
+          <div class="item-info">
+            <div class="item-name">${t.name}</div>
+            <div class="item-meta">${t.description}</div>
+            <div class="tags">${(t.tags || []).map(tag => `<span class="tag">${tag}</span>`).join('')}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function filterTools(q) {
+      renderTools(allTools.filter(t => t.name.toLowerCase().includes(q.toLowerCase()) || t.description.toLowerCase().includes(q.toLowerCase())));
+    }
+
+    async function loadToolSource(module) {
+      activeToolModule = module;
+      renderTools(allTools);
+      document.getElementById('tool-editor-title').textContent = `EDITING: ${module}.py`;
+      document.getElementById('tool-editor-actions').style.display = 'flex';
+      document.getElementById('tool-save-btn').style.display = '';
+      toolAce.setValue('Loading...', -1);
+      try {
+        const data = await apiFetch(`/api/tools/${module}/source`);
+        toolAce.setValue(data.content, -1);
+        toolAce.resize();
+      } catch (e) {
+        toolAce.setValue(`Error loading source: ${e.message}`, -1);
+      }
+    }
+
+    async function saveToolSource() {
+      if (!activeToolModule) return;
+      const content = toolAce.getValue();
+      const msg = document.getElementById('tool-status-msg');
+      msg.className = 'status-msg'; msg.textContent = 'Saving...'; msg.style.display = 'block';
+      try {
+        const r = await fetch(`/api/tools/${activeToolModule}/source`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content })
+        });
+        if (r.ok) {
+          const d = await r.json();
+          msg.className = 'status-msg ok';
+          msg.textContent = `✅ Saved & reloaded! Total: ${d.total_tools} tools`;
+          loadTools();
+          setTimeout(() => { msg.style.display = 'none'; }, 3000);
+        } else {
+          const d = await r.json();
+          msg.className = 'status-msg err';
+          msg.textContent = `❌ ${d.detail}`;
+        }
+      } catch (e) {
+        msg.className = 'status-msg err';
+        msg.textContent = `❌ ${e.message}`;
+      }
+    }
+
+    async function uploadTool(file) {
+      if (!file) return;
+      const formData = new FormData();
+      formData.append('file', file);
+      const msg = document.getElementById('upload-msg');
+      msg.className = 'status-msg'; msg.textContent = 'Uploading...'; msg.style.display = 'block';
+      try {
+        const r = await fetch('/api/tools/upload', { method: 'POST', body: formData });
+        const d = await r.json();
+        if (r.ok) {
+          msg.className = 'status-msg ok';
+          msg.textContent = `✅ Uploaded! Total: ${d.total_tools} tools`;
+          loadTools();
+        } else {
+          msg.className = 'status-msg err';
+          msg.textContent = `❌ ${d.detail}`;
+        }
+      } catch (e) {
+        msg.className = 'status-msg err';
+        msg.textContent = `❌ ${e.message}`;
+      }
+    }
+
+    // ─────────────────────────────────────────
+    // MODELS
+    // ─────────────────────────────────────────
+    let selectedModel = null;
+
+    async function loadModels() {
+      const [models, events] = await Promise.all([apiFetch('/api/models'), apiFetch('/api/logs/models')]);
+      const modelsList = document.getElementById('models-list');
+      modelsList.innerHTML = models.map(m => {
+        let icon = '✅', pillClass = 'pill-ok', statusText = m.status;
+        if (m.status === 'rate_limited') { icon = '⏳'; pillClass = 'pill-warn'; statusText = 'Rate Limited'; }
+        else if (m.status === 'unavailable') { icon = '❌'; pillClass = 'pill-err'; statusText = 'Unavailable (Errors)'; }
+        else if (m.consecutive_errors > 0) { icon = '⚠️'; pillClass = 'pill-warn'; statusText = `Available (${m.consecutive_errors} Errors)`; }
+        const reset = m.rate_limit_reset_at ? `<br><span style="font-size:11px;color:#ed8936">Resets: ${new Date(m.rate_limit_reset_at).toLocaleTimeString()}</span>` : '';
+        const isActive = selectedModel === m.name ? 'active' : '';
+        const mEvents = events.filter(e => e.model_name === m.name);
+        const eventsHtml = mEvents.map(e => `
+          <div style="display:grid; grid-template-columns: 80px 100px 1fr; gap:10px; font-size:11px; padding:4px 0; border-bottom:1px solid #1a1d2e;">
+            <div style="color:#718096">${new Date(e.timestamp).toLocaleTimeString()}</div>
+            <div><span class="pill ${e.event.includes('ERROR') || e.event.includes('LIMIT') ? 'pill-err' : 'pill-ok'}" style="font-size:9px; padding:1px 5px;">${e.event}</span></div>
+            <div style="color:#a0aec0; word-break:break-word; overflow-wrap:anywhere;" title="${e.detail}">${e.detail}</div>
+          </div>
+        `).join('') || '<div style="color:#4a5568; font-size:11px; padding:10px; text-align:center;">No recent events</div>';
+
+        return `
+          <div class="model-container">
+            <div class="model-item ${isActive}" onclick="toggleModel('${m.name}')">
+              <div class="model-priority">${m.priority}</div>
+              <div class="model-body">
+                <div class="model-name">${icon} ${m.name}</div>
+                <div class="model-provider">${m.provider}</div>
+                <div class="model-stats">
+                  <span>Calls: ${m.total_calls}</span>
+                  <span>In: ${m.total_input_tokens?.toLocaleString() || 0}</span>
+                  <span>Out: ${m.total_output_tokens?.toLocaleString() || 0}</span>
+                  <span>Errors: ${m.consecutive_errors}</span>
+                </div>
+                ${reset}
+              </div>
+              <div class="model-actions">
+                <span class="pill ${pillClass}">${statusText}</span>
+                ${m.status !== 'available' ? `<button class="btn btn-success btn-sm" onclick="event.stopPropagation(); resetModel('${m.name}')">Reset</button>` : ''}
+              </div>
+            </div>
+            <div class="model-events-collapse ${isActive}" id="events-${m.name.replace(/[^a-z0-9]/gi, '-')}">
+              <div style="padding:10px; border-top:1px solid #2d3748;">
+                <div style="font-size:11px; font-weight:700; color:#718096; text-transform:uppercase; margin-bottom:8px;">Recent Events</div>
+                ${eventsHtml}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleModel(name) { selectedModel = (selectedModel === name) ? null : name; loadModels(); }
+    async function resetModel(name) { await fetch(`/api/models/${encodeURIComponent(name)}/reset`, { method: 'POST' }); loadModels(); }
+
+    async function loadLogs() {
+      const runs = await apiFetch('/api/logs/runs?limit=50');
+      renderRunsTable(runs, 'logs-table');
+    }
+
+    async function loadLimits() {
+      try {
+        const states = await apiFetch('/api/rate-limits');
+        const list = document.getElementById('limits-list');
+        const entries = Object.entries(states);
+        if (entries.length === 0) {
+          list.innerHTML = '<div style="color:#718096;padding:20px;text-align:center">No API calls recorded yet</div>';
+          return;
+        }
+        list.innerHTML = entries.map(([name, s]) => {
+          const pct = Math.min(100, Math.round((s.calls_this_minute / s.max_per_minute) * 100));
+          const barColor = pct > 80 ? '#f56565' : pct > 50 ? '#ed8936' : '#48bb78';
+          return `
+            <div class="item" style="flex-direction:column;align-items:flex-start">
+              <div style="display:flex;justify-content:space-between;width:100%;margin-bottom:8px">
+                <div>
+                  <div class="item-name">${name}</div>
+                  <div class="item-meta">${s.calls_this_minute}/${s.max_per_minute} calls this minute | Total: ${s.total_calls} | Blocked: ${s.total_blocked}</div>
+                </div>
+                <div style="text-align:right;font-size:12px;color:#718096">Resets in ${s.seconds_until_reset}s</div>
+              </div>
+              <div class="progress-bar" style="width:100%">
+                <div class="progress-fill" style="width:${pct}%;background:${barColor}"></div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        document.getElementById('limits-list').innerHTML = `<div style="color:#f56565;padding:20px;text-align:center">Error loading limits: ${e.message}</div>`;
+      }
+    }
+
+    async function reloadConfig() {
+      await fetch('/api/config/reload', { method: 'POST' });
+      alert('Config reloaded.');
+      loadOverview();
+    }
+
+    loadOverview();
+    loadTools();
+    setInterval(loadOverview, 15000);
+    setInterval(() => {
+      if (document.getElementById('page-limits').classList.contains('active')) loadLimits();
+      if (document.getElementById('page-models').classList.contains('active')) loadModels();
+    }, 10000);
+  </script>
+</body>
+
+</html>

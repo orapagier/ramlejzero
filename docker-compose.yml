@@ -1,0 +1,87 @@
+services:
+  ramlejzero:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ramlejzero:latest
+    container_name: ramlejzero
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Manila
+    volumes:
+      # Config — edit on host, reflects immediately
+      - ./config:/app/config
+      # Auth Python module (source code)
+      - ./auth:/app/auth
+      # Token storage — separate from source code
+      - ./data/tokens:/app/data/tokens
+      # Tools — drop .py files here without rebuilding
+      - ./tools:/app/tools
+      # Logs
+      - agent_logs:/app/logs
+      # SSH keys
+      - /root/.ssh/server1.key:/app/ssh_keys/server1:ro
+      - /root/.ssh/server2.key:/app/ssh_keys/server2:ro
+    networks:
+      - ramlejzero-network
+    depends_on:
+      - qdrant
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: [ 'CMD', 'python', '-c', 'import urllib.request; urllib.request.urlopen("http://localhost:8000/health")' ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  qdrant:
+    image: qdrant/qdrant
+    container_name: qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+    environment:
+      - QDRANT__STORAGE__ON_DISK_PAYLOAD=true
+    volumes:
+      - /opt/qdrant-storage:/qdrant/storage
+    networks:
+      - ramlejzero-network
+    deploy:
+      resources:
+        limits:
+          memory: 200M
+        reservations:
+          memory: 100M
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: ramlejzero-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --protocol quic
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      ramlejzero:
+        condition: service_healthy
+    networks:
+      - ramlejzero-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+
+volumes:
+  agent_logs:
+    driver: local
+
+networks:
+  ramlejzero-network:
+    driver: bridge
+

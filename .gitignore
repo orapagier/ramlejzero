@@ -1,0 +1,6 @@
+# .gitignore
+.env
+data/tokens/
+config/apis.yaml
+config/settings.yaml
+config/models.yaml

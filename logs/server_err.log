@@ -1,0 +1,92 @@
+2026-02-28 04:12:21 | INFO     | app.agent                 | Logging initialized
+INFO:     Started server process [9316]
+INFO:     Waiting for application startup.
+2026-02-28 04:12:23 | INFO     | app.agent                 | Telegram polling started
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2026-02-28 04:13:04 | INFO     | app.model_router          | Model router initialized with 6 models: ['openai/gpt-oss-120b', 'gpt-oss-120b', 'gemini-2.5-flash', 'google/gemini-flash-1.5', 'claude-haiku-4-5-20251001', 'gpt-4o-mini']
+2026-02-28 04:46:12 | INFO     | app.agent                 | Iteration 1/10 | user_id=6967671873
+2026-02-28 04:46:12 | INFO     | app.model_router          | Calling model: openai/gpt-oss-120b (provider: openai)
+2026-02-28 04:46:14 | INFO     | app.model_router          | Model openai/gpt-oss-120b responded successfully
+2026-02-28 04:46:14 | INFO     | app.agent                 | Model: openai/gpt-oss-120b | stop: tool_use | tokens in=2073 out=96
+2026-02-28 04:46:14 | INFO     | app.agent                 | Tool call: agent_memory_tool | params: ['action', 'params']
+2026-02-28 04:46:15 | INFO     | app.agent                 | Iteration 2/10 | user_id=6967671873
+2026-02-28 04:46:15 | INFO     | app.model_router          | Calling model: openai/gpt-oss-120b (provider: openai)
+2026-02-28 04:46:16 | INFO     | app.model_router          | Model openai/gpt-oss-120b responded successfully
+2026-02-28 04:46:16 | INFO     | app.agent                 | Model: openai/gpt-oss-120b | stop: tool_use | tokens in=2161 out=77
+2026-02-28 04:46:16 | INFO     | app.agent                 | Tool call: agent_memory_tool | params: ['action', 'params']
+2026-02-28 04:46:17 | INFO     | app.agent                 | Iteration 3/10 | user_id=6967671873
+2026-02-28 04:46:17 | INFO     | app.model_router          | Calling model: openai/gpt-oss-120b (provider: openai)
+2026-02-28 04:46:18 | INFO     | app.model_router          | Model openai/gpt-oss-120b responded successfully
+2026-02-28 04:46:18 | INFO     | app.agent                 | Model: openai/gpt-oss-120b | stop: tool_use | tokens in=2242 out=92
+2026-02-28 04:46:18 | INFO     | app.agent                 | Tool call: agent_memory_tool | params: ['action', 'params']
+2026-02-28 04:46:18 | INFO     | app.agent                 | Iteration 4/10 | user_id=6967671873
+2026-02-28 04:46:18 | INFO     | app.model_router          | Calling model: openai/gpt-oss-120b (provider: openai)
+2026-02-28 04:46:23 | INFO     | app.model_router          | Model openai/gpt-oss-120b responded successfully
+2026-02-28 04:46:23 | INFO     | app.agent                 | Model: openai/gpt-oss-120b | stop: tool_use | tokens in=2323 out=108
+2026-02-28 04:46:23 | INFO     | app.agent                 | Tool call: agent_memory_tool | params: ['action', 'params']
+2026-02-28 04:46:23 | INFO     | app.agent                 | Iteration 5/10 | user_id=6967671873
+2026-02-28 04:46:23 | INFO     | app.model_router          | Calling model: openai/gpt-oss-120b (provider: openai)
+2026-02-28 04:46:26 | INFO     | app.model_router          | Model openai/gpt-oss-120b responded successfully
+2026-02-28 04:46:26 | INFO     | app.agent                 | Model: openai/gpt-oss-120b | stop: tool_use | tokens in=2403 out=131
+2026-02-28 04:46:26 | INFO     | app.agent                 | Tool call: agent_memory_tool | params: ['action', 'params']
+2026-02-28 04:46:27 | INFO     | app.agent                 | Iteration 6/10 | user_id=6967671873
+2026-02-28 04:46:27 | INFO     | app.model_router          | Calling model: openai/gpt-oss-120b (provider: openai)
+2026-02-28 04:46:46 | INFO     | app.model_router          | Model openai/gpt-oss-120b responded successfully
+2026-02-28 04:46:47 | INFO     | app.agent                 | Model: openai/gpt-oss-120b | stop: end_turn | tokens in=2483 out=154
+2026-02-28 04:46:47 | INFO     | app.agent                 | Run complete | user=6967671873 | model=openai/gpt-oss-120b | iterations=6 | tokens=13685in+658out | duration=34142ms
+2026-02-28 04:49:38 | INFO     | app.agent                 | Iteration 1/10 | user_id=6967671873
+2026-02-28 04:49:39 | INFO     | app.model_router          | Calling model: openai/gpt-oss-120b (provider: openai)
+2026-02-28 04:49:40 | INFO     | app.model_router          | Model openai/gpt-oss-120b responded successfully
+2026-02-28 04:49:40 | INFO     | app.agent                 | Model: openai/gpt-oss-120b | stop: tool_use | tokens in=2077 out=130
+2026-02-28 04:49:40 | INFO     | app.agent                 | Tool call: agent_memory_tool | params: ['action', 'params']
+2026-02-28 04:49:40 | INFO     | app.agent                 | Iteration 2/10 | user_id=6967671873
+2026-02-28 04:49:40 | INFO     | app.model_router          | Calling model: openai/gpt-oss-120b (provider: openai)
+2026-02-28 04:49:41 | INFO     | app.model_router          | Model openai/gpt-oss-120b responded successfully
+2026-02-28 04:49:41 | INFO     | app.agent                 | Model: openai/gpt-oss-120b | stop: tool_use | tokens in=2162 out=144
+2026-02-28 04:49:41 | INFO     | app.agent                 | Tool call: windows_tool | params: ['body', 'method', 'path']
+2026-02-28 04:49:42 | INFO     | app.agent                 | Iteration 3/10 | user_id=6967671873
+2026-02-28 04:49:42 | INFO     | app.model_router          | Calling model: openai/gpt-oss-120b (provider: openai)
+2026-02-28 04:49:43 | INFO     | app.model_router          | Model openai/gpt-oss-120b responded successfully
+2026-02-28 04:49:43 | INFO     | app.agent                 | Model: openai/gpt-oss-120b | stop: tool_use | tokens in=2204 out=109
+2026-02-28 04:49:43 | INFO     | app.agent                 | Tool call: windows_tool | params: ['body', 'method', 'path']
+2026-02-28 04:49:44 | INFO     | app.agent                 | Iteration 4/10 | user_id=6967671873
+2026-02-28 04:49:44 | INFO     | app.model_router          | Calling model: openai/gpt-oss-120b (provider: openai)
+2026-02-28 04:49:50 | INFO     | app.model_router          | Model openai/gpt-oss-120b responded successfully
+2026-02-28 04:49:50 | INFO     | app.agent                 | Model: openai/gpt-oss-120b | stop: tool_use | tokens in=2261 out=114
+2026-02-28 04:49:50 | INFO     | app.agent                 | Tool call: windows_tool | params: ['body', 'method', 'path']
+2026-02-28 04:49:50 | INFO     | app.agent                 | Iteration 5/10 | user_id=6967671873
+2026-02-28 04:49:50 | INFO     | app.model_router          | Calling model: openai/gpt-oss-120b (provider: openai)
+2026-02-28 04:49:51 | INFO     | app.model_router          | Model openai/gpt-oss-120b responded successfully
+2026-02-28 04:49:51 | INFO     | app.agent                 | Model: openai/gpt-oss-120b | stop: tool_use | tokens in=2304 out=93
+2026-02-28 04:49:51 | INFO     | app.agent                 | Tool call: windows_tool | params: ['body', 'method', 'path']
+2026-02-28 04:49:52 | INFO     | app.agent                 | Iteration 6/10 | user_id=6967671873
+2026-02-28 04:49:52 | INFO     | app.model_router          | Calling model: openai/gpt-oss-120b (provider: openai)
+2026-02-28 04:49:55 | INFO     | app.model_router          | Model openai/gpt-oss-120b responded successfully
+2026-02-28 04:49:55 | INFO     | app.agent                 | Model: openai/gpt-oss-120b | stop: end_turn | tokens in=2362 out=129
+2026-02-28 04:49:55 | INFO     | app.agent                 | Run complete | user=6967671873 | model=openai/gpt-oss-120b | iterations=6 | tokens=13370in+719out | duration=16470ms
+2026-02-28 04:52:56 | INFO     | app.agent                 | Iteration 1/10 | user_id=6967671873
+2026-02-28 04:52:56 | INFO     | app.model_router          | Calling model: openai/gpt-oss-120b (provider: openai)
+2026-02-28 04:52:57 | INFO     | app.model_router          | Model openai/gpt-oss-120b responded successfully
+2026-02-28 04:52:57 | INFO     | app.agent                 | Model: openai/gpt-oss-120b | stop: tool_use | tokens in=2078 out=110
+2026-02-28 04:52:57 | INFO     | app.agent                 | Tool call: agent_memory_tool | params: ['action', 'params']
+2026-02-28 04:52:58 | INFO     | app.agent                 | Iteration 2/10 | user_id=6967671873
+2026-02-28 04:52:58 | INFO     | app.model_router          | Calling model: openai/gpt-oss-120b (provider: openai)
+2026-02-28 04:52:59 | INFO     | app.model_router          | Model openai/gpt-oss-120b responded successfully
+2026-02-28 04:52:59 | INFO     | app.agent                 | Model: openai/gpt-oss-120b | stop: tool_use | tokens in=2166 out=98
+2026-02-28 04:52:59 | INFO     | app.agent                 | Tool call: agent_memory_tool | params: ['action', 'params']
+2026-02-28 04:52:59 | INFO     | app.agent                 | Iteration 3/10 | user_id=6967671873
+2026-02-28 04:52:59 | INFO     | app.model_router          | Calling model: openai/gpt-oss-120b (provider: openai)
+2026-02-28 04:53:01 | INFO     | app.model_router          | Model openai/gpt-oss-120b responded successfully
+2026-02-28 04:53:01 | INFO     | app.agent                 | Model: openai/gpt-oss-120b | stop: tool_use | tokens in=2254 out=133
+2026-02-28 04:53:01 | INFO     | app.agent                 | Tool call: agent_memory_tool | params: ['action', 'params']
+2026-02-28 04:53:01 | INFO     | app.agent                 | Iteration 4/10 | user_id=6967671873
+2026-02-28 04:53:01 | INFO     | app.model_router          | Calling model: openai/gpt-oss-120b (provider: openai)
+2026-02-28 04:53:06 | INFO     | app.model_router          | Model openai/gpt-oss-120b responded successfully
+2026-02-28 04:53:06 | INFO     | app.agent                 | Model: openai/gpt-oss-120b | stop: tool_use | tokens in=2336 out=161
+2026-02-28 04:53:06 | INFO     | app.agent                 | Tool call: windows_tool | params: ['body', 'method', 'path']
+2026-02-28 04:53:07 | INFO     | app.agent                 | Iteration 5/10 | user_id=6967671873
+2026-02-28 04:53:07 | INFO     | app.model_router          | Calling model: openai/gpt-oss-120b (provider: openai)
+2026-02-28 04:53:14 | INFO     | app.model_router          | Model openai/gpt-oss-120b responded successfully
+2026-02-28 04:53:14 | INFO     | app.agent                 | Model: openai/gpt-oss-120b | stop: end_turn | tokens in=2872 out=210
+2026-02-28 04:53:14 | INFO     | app.agent                 | Run complete | user=6967671873 | model=openai/gpt-oss-120b | iterations=5 | tokens=11706in+712out | duration=18336ms
