@@ -1,0 +1,3 @@
+scp -i "C:\Users\Admin\OneDrive - samuzziel\Documents\ramlej.key" -r "C:\Users\Admin\OneDrive - samuzziel\Documents\Dev\ramlejzero\config\*" ubuntu@150.136.121.78:/home/ubuntu/ramlejzero/config
+scp -i "C:\Users\Admin\OneDrive - samuzziel\Documents\ramlej.key" -r "C:\Users\Admin\OneDrive - samuzziel\Documents\Dev\ramlejzero\data\tokens\*" ubuntu@150.136.121.78:/home/ubuntu/ramlejzero/data/tokens
+ssh -i "C:\Users\Admin\OneDrive - samuzziel\Documents\ramlej.key" ubuntu@150.136.121.78 "cd /home/ubuntu/ bash zero0 && bash zero1"

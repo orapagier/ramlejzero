@@ -351,6 +351,7 @@ async def api_reload_config(creds=Depends(verify)):
     reload_configs()
     reload_tools()
     model_router.reload_models()
+    rate_limiter.reload_limits()
     return {"status": "reloaded"}
 
 

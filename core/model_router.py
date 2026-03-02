@@ -34,6 +34,7 @@ import anthropic
 from openai import AsyncOpenAI
 
 from core.config_loader import get_settings
+from core.rate_limiter import check_and_record
 
 logger = logging.getLogger("model_router")
 
@@ -441,6 +442,11 @@ async def call_llm(
 
     async def _try_model(model: ModelRecord) -> UnifiedResponse | None:
         """Attempt one model call. Returns response or None on failure."""
+        
+        # Proactively check rate limits using the model's unique name
+        if not await check_and_record(model.name, wait=False):
+            return None
+
         tokens = max_tokens or model.max_tokens
         try:
             logger.info(f"Calling {model.name} ({model.provider}/{model.model_id})")

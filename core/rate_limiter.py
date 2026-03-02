@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime
 from core.schemas import RateLimitState
-from core.config_loader import get_settings
+from core.config_loader import get_settings, get_models_config
 from core.logger import get_logger
 
 logger = get_logger("rate_limiter")
@@ -22,6 +22,18 @@ def _get_state(api_name: str) -> RateLimitState:
                 api_name=name,
                 max_calls_per_minute=max_calls
             )
+        
+        # Also seed all enabled models from models.yaml
+        models_cfg = get_models_config()
+        for m in models_cfg.get("models", []):
+            if not m.get("enabled", True):
+                continue
+            name = m.get("name")
+            if name and name not in _states:
+                _states[name] = RateLimitState(
+                    api_name=name,
+                    max_calls_per_minute=limits.get(name, {}).get("calls_per_minute", 60)
+                )
 
     if api_name not in _states:
         # Fallback for dynamic API names or ones missing from seed
@@ -84,3 +96,30 @@ def get_all_states() -> dict[str, dict]:
         }
         for name, s in _states.items()
     }
+
+
+def reload_limits():
+    """Refresh max_calls_per_minute from config for all states."""
+    settings = get_settings()
+    limits = settings.get("rate_limits", {})
+    
+    # Update all existing manually defined limits
+    for name, cfg in limits.items():
+        max_calls = cfg.get("calls_per_minute", 60)
+        if name in _states:
+            _states[name].max_calls_per_minute = max_calls
+        else:
+            _states[name] = RateLimitState(api_name=name, max_calls_per_minute=max_calls)
+            
+    # Update model name limits
+    models_cfg = get_models_config()
+    for m in models_cfg.get("models", []):
+        name = m.get("name")
+        if not name or not m.get("enabled", True):
+            continue
+        # Use specific model override if it exists, else default 60
+        max_calls = limits.get(name, {}).get("calls_per_minute", 60)
+        if name in _states:
+            _states[name].max_calls_per_minute = max_calls
+        else:
+            _states[name] = RateLimitState(api_name=name, max_calls_per_minute=max_calls)
