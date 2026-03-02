@@ -19,5 +19,5 @@ jobs:
           script: |
             cd /home/ubuntu
             git -C ramlejzero pull origin main
-            docker-compose build ramlejzero
-            docker-compose up -d --no-deps ramlejzero
+            docker compose build ramlejzero
+            docker compose up -d --no-deps ramlejzero
