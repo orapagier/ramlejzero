@@ -7,14 +7,12 @@ BASE = f"https://graph.facebook.com/{GRAPH_VERSION}"
 TOOL_DEFINITION = {
     "name": "facebook_tool",
     "description": (
-        "Manages Facebook Pages only (not personal profile). "
-        "Supports: listing pages, getting page info, "
-        "creating/deleting text posts, photo posts, video posts, reading and replying to comments, "
-        "liking comments, getting reaction counts, page and post insights/analytics, "
-        "reading page Messenger inbox, reading conversation messages, sending and replying to "
-        "Messenger messages, creating and listing page events, and reading and replying to page reviews. "
-        "Always confirm page name before posting or replying if multiple pages exist. "
-        "For Messenger replies, always confirm the recipient name before sending."
+        "Full Facebook Pages management. Supports: listing pages, getting page info, "
+        "creating/updating/deleting/scheduling text posts, photo posts, video posts, "
+        "reading and replying to comments, liking comments, getting reaction counts, "
+        "page and post insights/analytics, reading page Messenger inbox, reading "
+        "conversation messages, sending and replying to Messenger messages, "
+        "and creating and listing page events."
     ),
     "examples": [
         "post to my Facebook page",
@@ -30,8 +28,8 @@ TOOL_DEFINITION = {
         "get my page insights",
         "get post analytics",
         "create a page event",
-        "get page reviews",
-        "reply to a page review",
+        "schedule a post for tomorrow",
+        "edit that post",
         "post a photo to my page",
         "get page follower count",
     ],
@@ -43,6 +41,8 @@ TOOL_DEFINITION = {
                 "get_page_info",
                 "get_page_posts",
                 "create_post",
+                "update_post",
+                "schedule_post",
                 "create_photo_post",
                 "create_video_post",
                 "delete_post",
@@ -59,12 +59,8 @@ TOOL_DEFINITION = {
                 "reply_to_message",
                 "get_page_events",
                 "create_page_event",
-                "get_page_reviews",
-                "reply_to_review",
             ],
-            "description": (
-                "Action to perform. See 'data' for required parameters per action."
-            )
+            "description": "Action to perform. See 'data' for required parameters per action."
         },
         "data": {
             "type": "object",
@@ -74,6 +70,9 @@ TOOL_DEFINITION = {
                 "get_page_info: {page_id}\n"
                 "get_page_posts: {page_id, limit?}\n"
                 "create_post: {page_id, message, link?}\n"
+                "update_post: {page_id, post_id, message} — edit text of an existing post.\n"
+                "schedule_post: {page_id, message, scheduled_time} — scheduled_time as Unix timestamp. "
+                "Use for future posts. message is required.\n"
                 "create_photo_post: {page_id, photo_url, caption?}\n"
                 "create_video_post: {page_id, video_url, title?, description?}\n"
                 "delete_post: {page_id, post_id}\n"
@@ -89,9 +88,7 @@ TOOL_DEFINITION = {
                 "send_message: {page_id, recipient_id, message}\n"
                 "reply_to_message: {page_id, conversation_id, message}\n"
                 "get_page_events: {page_id, limit?}\n"
-                "create_page_event: {page_id, name, start_time, end_time?, description?, location?}\n"
-                "get_page_reviews: {page_id, limit?}\n"
-                "reply_to_review: {page_id, review_id, message}"
+                "create_page_event: {page_id, name, start_time, end_time?, description?, location?}"
             )
         }
     },
@@ -99,37 +96,40 @@ TOOL_DEFINITION = {
 }
 
 
-# ── HTTP helpers ──────────────────────────────────────────────────────────────
+# ── Async HTTP helpers ─────────────────────────────────────────────────────────
 
-def _get(path: str, token: str, params: dict = None) -> dict:
-    r = httpx.get(
-        f"{BASE}/{path}",
-        params={"access_token": token, **(params or {})},
-        timeout=20,
-    )
-    r.raise_for_status()
-    return r.json()
-
-
-def _post(path: str, token: str, payload: dict = None) -> dict:
-    r = httpx.post(
-        f"{BASE}/{path}",
-        params={"access_token": token},
-        json=payload or {},
-        timeout=20,
-    )
-    r.raise_for_status()
-    return r.json()
+async def _get(path: str, token: str, params: dict = None) -> dict:
+    async with httpx.AsyncClient() as client:
+        r = await client.get(
+            f"{BASE}/{path}",
+            params={"access_token": token, **(params or {})},
+            timeout=20,
+        )
+        r.raise_for_status()
+        return r.json()
 
 
-def _delete(path: str, token: str) -> dict:
-    r = httpx.delete(
-        f"{BASE}/{path}",
-        params={"access_token": token},
-        timeout=20,
-    )
-    r.raise_for_status()
-    return r.json()
+async def _post(path: str, token: str, payload: dict = None) -> dict:
+    async with httpx.AsyncClient() as client:
+        r = await client.post(
+            f"{BASE}/{path}",
+            params={"access_token": token},
+            json=payload or {},
+            timeout=20,
+        )
+        r.raise_for_status()
+        return r.json()
+
+
+async def _delete(path: str, token: str) -> dict:
+    async with httpx.AsyncClient() as client:
+        r = await client.delete(
+            f"{BASE}/{path}",
+            params={"access_token": token},
+            timeout=20,
+        )
+        r.raise_for_status()
+        return r.json()
 
 
 def _fmt_posts(posts: list) -> str:
@@ -141,7 +141,7 @@ def _fmt_posts(posts: list) -> str:
     )
 
 
-# ── Main executor ─────────────────────────────────────────────────────────────
+# ── Main executor ──────────────────────────────────────────────────────────────
 
 async def execute(action: str, data: dict = None) -> tuple:
     await check_and_record("facebook_api", wait=True)
@@ -152,10 +152,10 @@ async def execute(action: str, data: dict = None) -> tuple:
     except AuthRequiredError as e:
         return str(e), None, None
 
-    # ── Page info ─────────────────────────────────────────────────────────────
+    # ── Page info ──────────────────────────────────────────────────────────────
 
     if action == "list_pages":
-        result = _get("me/accounts", user_token, {
+        result = await _get("me/accounts", user_token, {
             "fields": "id,name,category,fan_count,followers_count,link"
         })
         pages = result.get("data", [])
@@ -171,7 +171,7 @@ async def execute(action: str, data: dict = None) -> tuple:
 
     elif action == "get_page_info":
         pt = get_page_token(data["page_id"])
-        result = _get(data["page_id"], pt, {
+        result = await _get(data["page_id"], pt, {
             "fields": (
                 "id,name,about,category,fan_count,followers_count,"
                 "website,phone,emails,location,link,description,cover,picture"
@@ -180,11 +180,11 @@ async def execute(action: str, data: dict = None) -> tuple:
         lines = [f"{k}: {v}" for k, v in result.items() if k != "id"]
         return f"Page: {result.get('name')} (ID: {result['id']})\n" + "\n".join(lines), None, None
 
-    # ── Posts ─────────────────────────────────────────────────────────────────
+    # ── Posts ──────────────────────────────────────────────────────────────────
 
     elif action == "get_page_posts":
         pt = get_page_token(data["page_id"])
-        result = _get(f"{data['page_id']}/posts", pt, {
+        result = await _get(f"{data['page_id']}/posts", pt, {
             "fields": "id,message,story,created_time,full_picture,permalink_url",
             "limit": data.get("limit", 10),
         })
@@ -195,15 +195,37 @@ async def execute(action: str, data: dict = None) -> tuple:
         payload = {"message": data["message"]}
         if data.get("link"):
             payload["link"] = data["link"]
-        result = _post(f"{data['page_id']}/feed", pt, payload)
+        result = await _post(f"{data['page_id']}/feed", pt, payload)
         return f"Post published. Post ID: {result['id']}", None, None
+
+    elif action == "update_post":
+        # Edit the message text of an existing post
+        pt = get_page_token(data["page_id"])
+        result = await _post(data["post_id"], pt, {"message": data["message"]})
+        return f"Post updated. Success: {result.get('success', result)}", None, None
+
+    elif action == "schedule_post":
+        # scheduled_time must be a Unix timestamp (int) at least 10 minutes in the future
+        pt = get_page_token(data["page_id"])
+        payload = {
+            "message": data["message"],
+            "published": False,
+            "scheduled_publish_time": data["scheduled_time"],
+        }
+        if data.get("link"):
+            payload["link"] = data["link"]
+        result = await _post(f"{data['page_id']}/feed", pt, payload)
+        return (
+            f"Post scheduled. Post ID: {result['id']} | "
+            f"Will publish at Unix timestamp: {data['scheduled_time']}"
+        ), None, None
 
     elif action == "create_photo_post":
         pt = get_page_token(data["page_id"])
         payload = {"url": data["photo_url"]}
         if data.get("caption"):
             payload["caption"] = data["caption"]
-        result = _post(f"{data['page_id']}/photos", pt, payload)
+        result = await _post(f"{data['page_id']}/photos", pt, payload)
         return f"Photo post published. Photo ID: {result.get('id', '?')}", None, None
 
     elif action == "create_video_post":
@@ -213,19 +235,19 @@ async def execute(action: str, data: dict = None) -> tuple:
             payload["title"] = data["title"]
         if data.get("description"):
             payload["description"] = data["description"]
-        result = _post(f"{data['page_id']}/videos", pt, payload)
+        result = await _post(f"{data['page_id']}/videos", pt, payload)
         return f"Video post published. Video ID: {result.get('id', '?')}", None, None
 
     elif action == "delete_post":
         pt = get_page_token(data["page_id"])
-        result = _delete(data["post_id"], pt)
+        result = await _delete(data["post_id"], pt)
         return f"Post deleted: {result}", None, None
 
-    # ── Comments ──────────────────────────────────────────────────────────────
+    # ── Comments ───────────────────────────────────────────────────────────────
 
     elif action == "get_comments":
         pt = get_page_token(data["page_id"])
-        result = _get(f"{data['post_id']}/comments", pt, {
+        result = await _get(f"{data['post_id']}/comments", pt, {
             "fields": "id,from,message,created_time,comment_count,like_count",
             "limit": data.get("limit", 25),
         })
@@ -244,35 +266,41 @@ async def execute(action: str, data: dict = None) -> tuple:
 
     elif action == "reply_to_comment":
         pt = get_page_token(data["page_id"])
-        result = _post(f"{data['comment_id']}/comments", pt, {
+        result = await _post(f"{data['comment_id']}/comments", pt, {
             "message": data["message"]
         })
         return f"Reply posted. Reply ID: {result['id']}", None, None
 
     elif action == "delete_comment":
         pt = get_page_token(data["page_id"])
-        result = _delete(data["comment_id"], pt)
+        result = await _delete(data["comment_id"], pt)
         return f"Comment deleted: {result}", None, None
 
     elif action == "like_comment":
         pt = get_page_token(data["page_id"])
-        result = _post(f"{data['comment_id']}/likes", pt)
+        result = await _post(f"{data['comment_id']}/likes", pt)
         return f"Comment liked: {result}", None, None
 
-    # ── Reactions ─────────────────────────────────────────────────────────────
+    # ── Reactions ──────────────────────────────────────────────────────────────
 
     elif action == "get_post_reactions":
         pt = get_page_token(data["page_id"])
+        # Get grand total in one call
+        res = await _get(f"{data['post_id']}/reactions", pt, {
+            "summary": "true",
+            "limit": "0",
+        })
+        grand_total = res.get("summary", {}).get("total_count", 0)
+        # Get per-type counts in parallel
         reaction_types = ["LIKE", "LOVE", "HAHA", "WOW", "SAD", "ANGRY", "CARE"]
-        totals = {}
-        for rt in reaction_types:
-            res = _get(f"{data['post_id']}/reactions", pt, {
-                "type": rt,
-                "summary": "true",
-                "limit": "0",
+        import asyncio
+        async def _get_type_count(rt):
+            r = await _get(f"{data['post_id']}/reactions", pt, {
+                "type": rt, "summary": "true", "limit": "0",
             })
-            totals[rt] = res.get("summary", {}).get("total_count", 0)
-        grand_total = sum(totals.values())
+            return rt, r.get("summary", {}).get("total_count", 0)
+        counts = await asyncio.gather(*[_get_type_count(rt) for rt in reaction_types])
+        totals = {rt: count for rt, count in counts}
         lines = [f"  {k}: {v}" for k, v in totals.items() if v > 0]
         return (
             f"Reactions on post {data['post_id']}:\n"
@@ -280,7 +308,7 @@ async def execute(action: str, data: dict = None) -> tuple:
             + f"\n  TOTAL: {grand_total}"
         ), None, None
 
-    # ── Insights ──────────────────────────────────────────────────────────────
+    # ── Insights ───────────────────────────────────────────────────────────────
 
     elif action == "get_page_insights":
         pt = get_page_token(data["page_id"])
@@ -290,7 +318,7 @@ async def execute(action: str, data: dict = None) -> tuple:
             "page_views_total,page_fan_adds,page_fan_removes"
         ))
         period = data.get("period", "day")
-        result = _get(f"{data['page_id']}/insights", pt, {
+        result = await _get(f"{data['page_id']}/insights", pt, {
             "metric": metric,
             "period": period,
         })
@@ -308,7 +336,7 @@ async def execute(action: str, data: dict = None) -> tuple:
 
     elif action == "get_post_insights":
         pt = get_page_token(data["page_id"])
-        result = _get(f"{data['post_id']}/insights", pt, {
+        result = await _get(f"{data['post_id']}/insights", pt, {
             "metric": (
                 "post_impressions,post_impressions_unique,"
                 "post_engaged_users,post_clicks,"
@@ -324,11 +352,11 @@ async def execute(action: str, data: dict = None) -> tuple:
         ]
         return "\n".join(lines), None, None
 
-    # ── Messaging ─────────────────────────────────────────────────────────────
+    # ── Messaging ──────────────────────────────────────────────────────────────
 
     elif action == "get_conversations":
         pt = get_page_token(data["page_id"])
-        result = _get(f"{data['page_id']}/conversations", pt, {
+        result = await _get(f"{data['page_id']}/conversations", pt, {
             "fields": "id,participants,updated_time,snippet,unread_count",
             "limit": data.get("limit", 10),
         })
@@ -349,7 +377,7 @@ async def execute(action: str, data: dict = None) -> tuple:
 
     elif action == "get_conversation_messages":
         pt = get_page_token(data["page_id"])
-        result = _get(data["conversation_id"], pt, {
+        result = await _get(data["conversation_id"], pt, {
             "fields": "messages{id,message,from,created_time}",
             "limit": data.get("limit", 20),
         })
@@ -365,7 +393,7 @@ async def execute(action: str, data: dict = None) -> tuple:
 
     elif action == "send_message":
         pt = get_page_token(data["page_id"])
-        result = _post("me/messages", pt, {
+        result = await _post("me/messages", pt, {
             "recipient": {"id": data["recipient_id"]},
             "message": {"text": data["message"]},
             "messaging_type": "RESPONSE",
@@ -374,7 +402,7 @@ async def execute(action: str, data: dict = None) -> tuple:
 
     elif action == "reply_to_message":
         pt = get_page_token(data["page_id"])
-        thread = _get(data["conversation_id"], pt, {"fields": "participants"})
+        thread = await _get(data["conversation_id"], pt, {"fields": "participants"})
         page_id = data["page_id"]
         recipient = next(
             (p for p in thread.get("participants", {}).get("data", [])
@@ -383,18 +411,18 @@ async def execute(action: str, data: dict = None) -> tuple:
         )
         if not recipient:
             return "Could not find recipient in conversation.", None, None
-        result = _post("me/messages", pt, {
+        result = await _post("me/messages", pt, {
             "recipient": {"id": recipient["id"]},
             "message": {"text": data["message"]},
             "messaging_type": "RESPONSE",
         })
         return f"Reply sent. ID: {result.get('message_id', '?')}", None, None
 
-    # ── Events ────────────────────────────────────────────────────────────────
+    # ── Events ─────────────────────────────────────────────────────────────────
 
     elif action == "get_page_events":
         pt = get_page_token(data["page_id"])
-        result = _get(f"{data['page_id']}/events", pt, {
+        result = await _get(f"{data['page_id']}/events", pt, {
             "fields": "id,name,start_time,end_time,place,description,attending_count,interested_count",
             "limit": data.get("limit", 10),
         })
@@ -422,35 +450,7 @@ async def execute(action: str, data: dict = None) -> tuple:
             payload["description"] = data["description"]
         if data.get("location"):
             payload["location"] = data["location"]
-        result = _post(f"{data['page_id']}/events", pt, payload)
+        result = await _post(f"{data['page_id']}/events", pt, payload)
         return f"Event created. Event ID: {result.get('id', '?')}", None, None
-
-    # ── Reviews ───────────────────────────────────────────────────────────────
-
-    elif action == "get_page_reviews":
-        pt = get_page_token(data["page_id"])
-        result = _get(f"{data['page_id']}/ratings", pt, {
-            "fields": "reviewer,rating,review_text,created_time,recommendation_type",
-            "limit": data.get("limit", 10),
-        })
-        reviews = result.get("data", [])
-        if not reviews:
-            return "No reviews found.", None, None
-        lines = [
-            f"- [{r['created_time']}] {r.get('reviewer', {}).get('name', '?')} "
-            f"| ⭐ {r.get('rating', '?')} "
-            f"| {r.get('recommendation_type', '?')}: "
-            f"{r.get('review_text', '(no text)')} "
-            f"| ID: {r['id']}"
-            for r in reviews
-        ]
-        return "\n".join(lines), None, None
-
-    elif action == "reply_to_review":
-        pt = get_page_token(data["page_id"])
-        result = _post(f"{data['review_id']}/comments", pt, {
-            "message": data["message"]
-        })
-        return f"Review reply posted. ID: {result.get('id', '?')}", None, None
 
     return f"Unknown action: {action}", None, None

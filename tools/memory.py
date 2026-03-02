@@ -5,28 +5,37 @@ from core.rate_limiter import check_and_record
 
 TOOL_DEFINITION = {
     "name": "agent_memory_tool",
-    "description": """Use this tool to save and retrieve agent's long-term memory.
+    "description": """Use this tool to save, retrieve, list, and delete the agent's long-term memory.
 
 DO NOT call this tool for simple, isolated questions or basic commands (e.g., "ping my windows machine") that do not benefit from past context.
 
 To RETRIEVE: action="retrieve_memory", params="describe the current task and relevant context"
 To SAVE: action="save_memory", params="the fact to remember"
+To LIST ALL: action="list_memories", params="" — shows everything currently stored
+To DELETE: action="delete_memory", params="<memory_id>" — removes a specific memory by its ID (get IDs from list_memories)
 
 Save each individual fact as a SEPARATE call — never combine multiple facts into one.""",
     "examples": [
         "do you know my server address",
         "what did I tell you about my setup",
         "keep in mind I prefer dark mode",
+        "show me everything you remember about me",
+        "forget that I said my server is at 192.168.1.1",
     ],
     "parameters": {
         "action": {
             "type": "string",
-            "description": "Either 'retrieve_memory' or 'save_memory'",
-            "enum": ["retrieve_memory", "save_memory"]
+            "description": "Action: 'retrieve_memory', 'save_memory', 'list_memories', 'delete_memory'",
+            "enum": ["retrieve_memory", "save_memory", "list_memories", "delete_memory"]
         },
         "params": {
             "type": "string",
-            "description": "The query for retrieval, or the fact to save"
+            "description": (
+                "For retrieve_memory: describe what you're looking for. "
+                "For save_memory: the fact to store. "
+                "For list_memories: pass empty string or a keyword to filter by. "
+                "For delete_memory: the numeric ID of the memory to delete (from list_memories)."
+            )
         }
     },
     "required": ["action", "params"]
@@ -68,16 +77,22 @@ async def execute(action: str, params: str) -> str:
     qdrant_url = cfg["qdrant_url"]
     collection = cfg["qdrant_collection"]
 
+    # Retrieve memory
     if action == "retrieve_memory":
         embedding = await _embed(params, cfg.get("voyage_retrieve_model", "voyage-4-lite"))
-        results = await _search(embedding, limit=cfg.get("top_k", 10), threshold=cfg.get("score_threshold", 0.30))
+        results = await _search(
+            embedding,
+            limit=cfg.get("top_k", 10),
+            threshold=cfg.get("score_threshold", 0.30)
+        )
         if not results:
             return "No relevant memories found."
         return "\n".join(
-            f"- {r['payload']['text']} (relevance: {round(r['score'] * 100)}%)"
+            f"- [{r['id']}] {r['payload']['text']} (relevance: {round(r['score'] * 100)}%)"
             for r in results
         )
 
+    # Save memory
     elif action == "save_memory":
         embedding = await _embed(params, cfg.get("voyage_save_model", "voyage-4-large"))
         existing = await _search(embedding, limit=1)
@@ -98,13 +113,14 @@ async def execute(action: str, params: str) -> str:
                     }]},
                     timeout=10
                 )
-            return "Memory updated."
+            return f"Memory updated (ID: {top['id']})."
 
+        new_id = int(time.time() * 1000)
         async with httpx.AsyncClient() as client:
             await client.put(
                 f"{qdrant_url}/collections/{collection}/points",
                 json={"points": [{
-                    "id": int(time.time() * 1000),
+                    "id": new_id,
                     "vector": embedding,
                     "payload": {
                         "text": params,
@@ -113,6 +129,59 @@ async def execute(action: str, params: str) -> str:
                 }]},
                 timeout=10
             )
-        return "Memory saved."
+        return f"Memory saved (ID: {new_id})."
 
-    return "Invalid action. Use 'retrieve_memory' or 'save_memory'."
+    # List all memories
+    elif action == "list_memories":
+        async with httpx.AsyncClient() as client:
+            r = await client.post(
+                f"{qdrant_url}/collections/{collection}/points/scroll",
+                json={
+                    "limit": 100,
+                    "with_payload": True,
+                    "with_vector": False,
+                },
+                timeout=15
+            )
+            r.raise_for_status()
+            points = r.json().get("result", {}).get("points", [])
+
+        if not points:
+            return "No memories stored yet."
+
+        keyword = params.strip().lower() if params.strip() else None
+        if keyword:
+            points = [
+                p for p in points
+                if keyword in p["payload"].get("text", "").lower()
+            ]
+            if not points:
+                return f"No memories found matching '{keyword}'."
+
+        lines = [f"Total memories: {len(points)}\n"]
+        for p in points:
+            created = p["payload"].get("created_at", "?")
+            updated = p["payload"].get("updated_at", "")
+            timestamp = f"updated {updated}" if updated else f"created {created}"
+            lines.append(f"[{p['id']}] {p['payload'].get('text', '?')} ({timestamp})")
+        return "\n".join(lines)
+
+    # Delete a specific memory by ID
+    elif action == "delete_memory":
+        try:
+            memory_id = int(params.strip())
+        except ValueError:
+            return (
+                "delete_memory requires a numeric ID. "
+                "Use list_memories to find the ID of the memory you want to remove."
+            )
+        async with httpx.AsyncClient() as client:
+            r = await client.post(
+                f"{qdrant_url}/collections/{collection}/points/delete",
+                json={"points": [memory_id]},
+                timeout=10
+            )
+            r.raise_for_status()
+        return f"Memory {memory_id} deleted."
+
+    return "Invalid action. Use 'retrieve_memory', 'save_memory', 'list_memories', or 'delete_memory'."
