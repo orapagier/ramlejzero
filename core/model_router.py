@@ -34,7 +34,6 @@ import anthropic
 from openai import AsyncOpenAI
 
 from core.config_loader import get_settings
-from core.rate_limiter import check_and_record
 
 logger = logging.getLogger("model_router")
 
@@ -50,6 +49,120 @@ _PROVIDER_BASE_URLS = {
     "openrouter": "https://openrouter.ai/api/v1",
     "ollama":     "http://localhost:11434/v1",
     "openai":     None,  # uses OpenAI default
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Provider rate limit baselines (Free / Paid tiers)
+# These are reference values only — actual enforced limits come from headers.
+# None = not documented / not applicable
+# ─────────────────────────────────────────────────────────────────────────────
+
+PROVIDER_BASELINES = {
+    "groq": {
+        "free": {
+            "req_per_min": 30,    "tokens_per_min": 6_000,
+            "req_per_hour": None, "tokens_per_hour": None,
+            "req_per_day": 14_400, "tokens_per_day": 500_000,
+        },
+        "paid": {
+            "req_per_min": 6_000,  "tokens_per_min": 200_000,
+            "req_per_hour": None,  "tokens_per_hour": None,
+            "req_per_day": None,   "tokens_per_day": None,
+        },
+        "note": "Limits vary per model — shown values are typical for most models",
+        "header_style": "openai",  # x-ratelimit-remaining-requests / reset in Xs format
+    },
+    "cerebras": {
+        "free": {
+            "req_per_min": 30,       "tokens_per_min": 60_000,
+            "req_per_hour": 900,     "tokens_per_hour": 1_000_000,
+            "req_per_day": None,     "tokens_per_day": None,
+        },
+        "paid": {
+            "req_per_min": 240,      "tokens_per_min": 1_000_000,
+            "req_per_hour": None,    "tokens_per_hour": None,
+            "req_per_day": None,     "tokens_per_day": None,
+        },
+        "note": "Reset times returned as seconds in headers",
+        "header_style": "cerebras",  # x-ratelimit-remaining-tokens-per-minute etc.
+    },
+    "anthropic": {
+        "free": {
+            "req_per_min": 5,     "tokens_per_min": 25_000,
+            "req_per_hour": None, "tokens_per_hour": None,
+            "req_per_day": None,  "tokens_per_day": None,
+        },
+        "paid": {
+            "req_per_min": 50,    "tokens_per_min": 50_000,
+            "req_per_hour": None, "tokens_per_hour": None,
+            "req_per_day": None,  "tokens_per_day": None,
+        },
+        "note": "Paid values shown for Tier 1; escalates through Tier 4",
+        "header_style": "anthropic",
+    },
+    "openai": {
+        "free": {
+            "req_per_min": 3,     "tokens_per_min": 40_000,
+            "req_per_hour": None, "tokens_per_hour": None,
+            "req_per_day": None,  "tokens_per_day": None,
+        },
+        "paid": {
+            "req_per_min": 500,   "tokens_per_min": 200_000,
+            "req_per_hour": None, "tokens_per_hour": None,
+            "req_per_day": None,  "tokens_per_day": None,
+        },
+        "note": "Paid values for Tier 1; varies significantly by model",
+        "header_style": "openai",
+    },
+    "google": {
+        "free": {
+            "req_per_min": 15,     "tokens_per_min": 1_000_000,
+            "req_per_hour": None,  "tokens_per_hour": None,
+            "req_per_day": 1_500,  "tokens_per_day": None,
+        },
+        "paid": {
+            "req_per_min": 2_000,  "tokens_per_min": 4_000_000,
+            "req_per_hour": None,  "tokens_per_hour": None,
+            "req_per_day": None,   "tokens_per_day": None,
+        },
+        "note": "Gemini Flash limits shown; other models differ",
+        "header_style": "openai",
+    },
+    "openrouter": {
+        "free": {
+            "req_per_min": 20,    "tokens_per_min": None,
+            "req_per_hour": None, "tokens_per_hour": None,
+            "req_per_day": 200,   "tokens_per_day": None,
+        },
+        "paid": {
+            "req_per_min": 600,   "tokens_per_min": None,
+            "req_per_hour": None, "tokens_per_hour": None,
+            "req_per_day": None,  "tokens_per_day": None,
+        },
+        "note": "Free model limits; paid model limits vary by model credits",
+        "header_style": "openai",
+    },
+    "nvidia": {
+        "free": {
+            "req_per_min": 40,    "tokens_per_min": None,
+            "req_per_hour": None, "tokens_per_hour": None,
+            "req_per_day": None,  "tokens_per_day": None,
+        },
+        "paid": {
+            "req_per_min": None,  "tokens_per_min": None,
+            "req_per_hour": None, "tokens_per_hour": None,
+            "req_per_day": None,  "tokens_per_day": None,
+        },
+        "note": "API catalog limits; paid tiers billed per token",
+        "header_style": "openai",
+    },
+    "ollama": {
+        "free": None,
+        "paid": None,
+        "note": "Local deployment — no enforced rate limits",
+        "header_style": None,
+    },
 }
 
 
@@ -70,6 +183,36 @@ class ContentBlock:
 class UsageInfo:
     input_tokens: int = 0
     output_tokens: int = 0
+
+
+@dataclass
+class RateLimitSnapshot:
+    """Live rate-limit data parsed from response headers."""
+    # Per-minute window
+    req_limit_per_min: int | None = None
+    req_remaining_per_min: int | None = None
+    req_reset_per_min: str | None = None       # ISO ts or human-readable "Xs"
+    tokens_limit_per_min: int | None = None
+    tokens_remaining_per_min: int | None = None
+    tokens_reset_per_min: str | None = None
+    # Per-hour window (Cerebras)
+    req_limit_per_hour: int | None = None
+    req_remaining_per_hour: int | None = None
+    tokens_limit_per_hour: int | None = None
+    tokens_remaining_per_hour: int | None = None
+    tokens_reset_per_hour: str | None = None
+    # Catch-all / generic (Anthropic uses un-windowed headers)
+    req_limit: int | None = None
+    req_remaining: int | None = None
+    req_reset: str | None = None
+    tokens_limit: int | None = None
+    tokens_remaining: int | None = None
+    tokens_reset: str | None = None
+    # Meta
+    last_updated: float = 0.0   # time.time()
+
+    def to_dict(self) -> dict:
+        return {k: v for k, v in self.__dict__.items()}
 
 
 @dataclass
@@ -98,6 +241,9 @@ class ModelRecord:
     total_calls: int = 0
     total_input_tokens: int = 0
     total_output_tokens: int = 0
+
+    # Live rate-limit snapshot from response headers
+    rl_snapshot: RateLimitSnapshot = field(default_factory=RateLimitSnapshot)
 
     def is_available(self) -> bool:
         if not self.enabled:
@@ -141,6 +287,94 @@ class ModelRecord:
         self.total_calls += 1
         self.total_input_tokens += input_tokens
         self.total_output_tokens += output_tokens
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Rate limit header parsers
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _parse_openai_rl_headers(headers: dict) -> RateLimitSnapshot:
+    """
+    Parse OpenAI-style headers (also used by Groq, Google, OpenRouter, Nvidia).
+    Header names: x-ratelimit-limit-requests, x-ratelimit-remaining-requests,
+                  x-ratelimit-reset-requests (value like "1s", "59.5s", "1m30s")
+    """
+    def _int(key: str) -> int | None:
+        v = headers.get(key)
+        return int(v) if v and v.isdigit() else None
+
+    snap = RateLimitSnapshot(last_updated=time.time())
+    snap.req_limit_per_min      = _int("x-ratelimit-limit-requests")
+    snap.req_remaining_per_min  = _int("x-ratelimit-remaining-requests")
+    snap.req_reset_per_min      = headers.get("x-ratelimit-reset-requests")
+    snap.tokens_limit_per_min   = _int("x-ratelimit-limit-tokens")
+    snap.tokens_remaining_per_min = _int("x-ratelimit-remaining-tokens")
+    snap.tokens_reset_per_min   = headers.get("x-ratelimit-reset-tokens")
+    return snap
+
+
+def _parse_cerebras_rl_headers(headers: dict) -> RateLimitSnapshot:
+    """
+    Parse Cerebras-style headers.
+    Header names: x-ratelimit-limit-tokens-per-minute,
+                  x-ratelimit-remaining-tokens-per-minute,
+                  x-ratelimit-reset-tokens-per-minute (seconds as int),
+                  x-ratelimit-limit-tokens-per-hour, etc.
+    """
+    def _int(key: str) -> int | None:
+        v = headers.get(key)
+        try:
+            return int(v) if v is not None else None
+        except (ValueError, TypeError):
+            return None
+
+    snap = RateLimitSnapshot(last_updated=time.time())
+    snap.req_limit_per_min       = _int("x-ratelimit-limit-requests-per-minute")
+    snap.req_remaining_per_min   = _int("x-ratelimit-remaining-requests-per-minute")
+    snap.tokens_limit_per_min    = _int("x-ratelimit-limit-tokens-per-minute")
+    snap.tokens_remaining_per_min = _int("x-ratelimit-remaining-tokens-per-minute")
+    reset_min = headers.get("x-ratelimit-reset-tokens-per-minute")
+    snap.tokens_reset_per_min    = f"{reset_min}s" if reset_min else None
+    snap.tokens_limit_per_hour   = _int("x-ratelimit-limit-tokens-per-hour")
+    snap.tokens_remaining_per_hour = _int("x-ratelimit-remaining-tokens-per-hour")
+    reset_hr = headers.get("x-ratelimit-reset-tokens-per-hour")
+    snap.tokens_reset_per_hour   = f"{reset_hr}s" if reset_hr else None
+    return snap
+
+
+def _parse_anthropic_rl_headers(headers: dict) -> RateLimitSnapshot:
+    """
+    Parse Anthropic-style headers.
+    Header names: anthropic-ratelimit-requests-limit,
+                  anthropic-ratelimit-requests-remaining,
+                  anthropic-ratelimit-requests-reset (ISO timestamp)
+    """
+    def _int(key: str) -> int | None:
+        v = headers.get(key)
+        try:
+            return int(v) if v is not None else None
+        except (ValueError, TypeError):
+            return None
+
+    snap = RateLimitSnapshot(last_updated=time.time())
+    snap.req_limit      = _int("anthropic-ratelimit-requests-limit")
+    snap.req_remaining  = _int("anthropic-ratelimit-requests-remaining")
+    snap.req_reset      = headers.get("anthropic-ratelimit-requests-reset")
+    snap.tokens_limit   = _int("anthropic-ratelimit-tokens-limit")
+    snap.tokens_remaining = _int("anthropic-ratelimit-tokens-remaining")
+    snap.tokens_reset   = headers.get("anthropic-ratelimit-tokens-reset")
+    return snap
+
+
+def _parse_headers(provider: str, headers: dict) -> RateLimitSnapshot:
+    style = PROVIDER_BASELINES.get(provider, {}).get("header_style")
+    if style == "anthropic":
+        return _parse_anthropic_rl_headers(headers)
+    elif style == "cerebras":
+        return _parse_cerebras_rl_headers(headers)
+    elif style == "openai":
+        return _parse_openai_rl_headers(headers)
+    return RateLimitSnapshot(last_updated=time.time())
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -299,19 +533,28 @@ def _normalize_openai_response(response) -> UnifiedResponse:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Provider call implementations
+# Provider call implementations — now capturing rate-limit headers
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def _call_anthropic(model, messages, system, tools, max_tokens) -> UnifiedResponse:
+async def _call_anthropic(model: "ModelRecord", messages, system, tools, max_tokens) -> UnifiedResponse:
     client = anthropic.AsyncAnthropic(api_key=model.api_key)
     kwargs: dict = dict(model=model.model_id, max_tokens=max_tokens, messages=messages, system=system)
     if tools:
         kwargs["tools"] = _to_anthropic_tools(tools)
-    response = await client.messages.create(**kwargs)
+
+    try:
+        raw = await client.messages.with_raw_response.create(**kwargs)
+        headers = {k.lower(): v for k, v in raw.headers.items()}
+        model.rl_snapshot = _parse_headers("anthropic", headers)
+        response = raw.parse()
+    except Exception:
+        # Fallback: call without header capture
+        response = await client.messages.create(**kwargs)
+
     return _normalize_anthropic_response(response)
 
 
-async def _call_openai_compat(model, messages, system, tools, max_tokens) -> UnifiedResponse:
+async def _call_openai_compat(model: "ModelRecord", messages, system, tools, max_tokens) -> UnifiedResponse:
     base_url = model.base_url or _PROVIDER_BASE_URLS.get(model.provider)
     api_key = model.api_key or "nokey"
 
@@ -323,11 +566,19 @@ async def _call_openai_compat(model, messages, system, tools, max_tokens) -> Uni
         kwargs["tools"] = _to_openai_tools(tools)
         kwargs["tool_choice"] = "auto"
 
-    response = await client.chat.completions.create(**kwargs)
+    try:
+        raw = await client.chat.completions.with_raw_response.create(**kwargs)
+        headers = {k.lower(): v for k, v in raw.headers.items()}
+        model.rl_snapshot = _parse_headers(model.provider, headers)
+        response = raw.parse()
+    except Exception:
+        # Fallback: call without header capture
+        response = await client.chat.completions.create(**kwargs)
+
     return _normalize_openai_response(response)
 
 
-async def _call_model(model, messages, system, tools, max_tokens) -> UnifiedResponse:
+async def _call_model(model: "ModelRecord", messages, system, tools, max_tokens) -> UnifiedResponse:
     if model.provider == "anthropic":
         return await _call_anthropic(model, messages, system, tools, max_tokens)
     else:
@@ -387,19 +638,13 @@ def reload_models():
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Rotation state
-# _router_lock ensures concurrent requests each pick a DIFFERENT model atomically
 # ─────────────────────────────────────────────────────────────────────────────
 
 _global_index: int = 0
 _router_lock = asyncio.Lock()
 
 
-def _pick_next_available(start: int, fallback_only: bool = False) -> tuple[ModelRecord | None, int]:
-    """
-    Walk the model list from start, return the first available model
-    matching the fallback_only filter.
-    Returns (model, next_index) or (None, start) if none available.
-    """
+def _pick_next_available(start: int, fallback_only: bool = False) -> tuple["ModelRecord | None", int]:
     n = len(_models)
     for i in range(n):
         idx = (start + i) % n
@@ -423,15 +668,6 @@ async def call_llm(
 ) -> tuple[UnifiedResponse, ModelRecord]:
     """
     Two-pass model selection with locked round-robin.
-
-    Pass 1 — Global round-robin across all non-fallback models.
-      Lock is held ONLY during index selection (microseconds), not during the
-      API call itself — so concurrent requests each get a different model
-      and all their API calls run in parallel.
-
-    Pass 2 — Fallback models, only when every free model is exhausted.
-
-    Raises RuntimeError only when both passes fail completely.
     """
     global _global_index
 
@@ -441,12 +677,6 @@ async def call_llm(
     tools = tools or []
 
     async def _try_model(model: ModelRecord) -> UnifiedResponse | None:
-        """Attempt one model call. Returns response or None on failure."""
-        
-        # Proactively check rate limits using the model's unique name
-        if not await check_and_record(model.name, wait=False):
-            return None
-
         tokens = max_tokens or model.max_tokens
         try:
             logger.info(f"Calling {model.name} ({model.provider}/{model.model_id})")
@@ -472,17 +702,15 @@ async def call_llm(
             return None
 
     # ── Pass 1: Free models, locked round-robin ──
-    # Lock held only during index read+increment, NOT during API call.
-    # This means concurrent requests pick different models, then call them in parallel.
     n_free = sum(1 for m in _models if not m.is_fallback and m.enabled)
     for _ in range(n_free):
         async with _router_lock:
             model, next_idx = _pick_next_available(_global_index, fallback_only=False)
             if model is None:
                 break
-            _global_index = next_idx  # advance index atomically before releasing lock
+            _global_index = next_idx
 
-        response = await _try_model(model)  # API call outside lock — runs concurrently
+        response = await _try_model(model)
         if response is not None:
             return response, model
 
@@ -520,6 +748,41 @@ def get_all_model_status() -> list[dict]:
         "total_input_tokens": m.total_input_tokens,
         "total_output_tokens": m.total_output_tokens,
     } for m in _models]
+
+
+def get_model_rate_limit_status() -> list[dict]:
+    """
+    Return per-model rate limit data for the dashboard:
+      - Live header snapshot (from last API call)
+      - Provider baselines (free / paid)
+      - Model name, provider, status
+    """
+    result = []
+    for m in _models:
+        baselines = PROVIDER_BASELINES.get(m.provider, {})
+        snap = m.rl_snapshot.to_dict() if m.rl_snapshot else {}
+        result.append({
+            "name": m.name,
+            "model_id": m.model_id,
+            "provider": m.provider,
+            "priority": m.priority,
+            "is_fallback": m.is_fallback,
+            "status": m.status,
+            "rate_limit_reset_at": m.rate_limit_reset_at,
+            "total_calls": m.total_calls,
+            "total_input_tokens": m.total_input_tokens,
+            "total_output_tokens": m.total_output_tokens,
+            "consecutive_errors": m.consecutive_errors,
+            # Live snapshot from headers
+            "live": snap,
+            # Provider baselines
+            "baselines": {
+                "free": baselines.get("free"),
+                "paid": baselines.get("paid"),
+                "note": baselines.get("note", ""),
+            },
+        })
+    return result
 
 
 def reset_model(name: str) -> bool:

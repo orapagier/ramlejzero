@@ -616,6 +616,236 @@
       gap: 10px;
       justify-content: flex-end;
     }
+
+    /* ── Rate Limits Tab ── */
+    .rl-container {
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #242740;
+      margin-bottom: 10px;
+    }
+
+    .rl-container.status-rate-limited {
+      border-color: #744210;
+    }
+
+    .rl-container.status-unavailable {
+      border-color: #742a2a;
+    }
+
+    .rl-header {
+      padding: 14px 16px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .rl-header:hover {
+      background: #2d314d;
+    }
+
+    .rl-header.active {
+      background: #1e2235;
+    }
+
+    .rl-body {
+      flex: 1;
+    }
+
+    .rl-name {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .rl-sub {
+      font-size: 11px;
+      color: #718096;
+      margin-top: 2px;
+    }
+
+    .rl-stats {
+      display: flex;
+      gap: 16px;
+      margin-top: 6px;
+      font-size: 11px;
+      color: #718096;
+      flex-wrap: wrap;
+    }
+
+    .rl-detail-panel {
+      display: none;
+      background: #0f1117;
+      border-top: 1px solid #2d3748;
+      padding: 16px;
+    }
+
+    .rl-detail-panel.active {
+      display: block;
+    }
+
+    .rl-tier-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .rl-tier-card {
+      background: #1a1d2e;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .rl-tier-card.free-tier {
+      border-color: #2d4a6a;
+    }
+
+    .rl-tier-card.paid-tier {
+      border-color: #276749;
+    }
+
+    .rl-tier-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+    }
+
+    .rl-tier-title.free-tier {
+      color: #63b3ed;
+    }
+
+    .rl-tier-title.paid-tier {
+      color: #68d391;
+    }
+
+    .rl-limit-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      border-bottom: 1px solid #1e2235;
+      font-size: 11px;
+    }
+
+    .rl-limit-row:last-child {
+      border-bottom: none;
+    }
+
+    .rl-limit-label {
+      color: #718096;
+    }
+
+    .rl-limit-val {
+      font-family: monospace;
+      color: #e2e8f0;
+      font-weight: 600;
+    }
+
+    .rl-limit-val.na {
+      color: #4a5568;
+      font-weight: 400;
+    }
+
+    .rl-live-panel {
+      background: #1a1d2e;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .rl-live-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #a0aec0;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .live-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #48bb78;
+      animation: pulse 2s infinite;
+    }
+
+    .live-dot.stale {
+      background: #718096;
+      animation: none;
+    }
+
+    .rl-live-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .rl-live-item {
+      background: #0f1117;
+      border-radius: 6px;
+      padding: 8px 10px;
+    }
+
+    .rl-live-item-label {
+      font-size: 10px;
+      color: #4a5568;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .rl-live-item-val {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: monospace;
+    }
+
+    .rl-live-item-val.ok {
+      color: #68d391;
+    }
+
+    .rl-live-item-val.warn {
+      color: #f6ad55;
+    }
+
+    .rl-live-item-val.crit {
+      color: #fc8181;
+    }
+
+    .rl-live-item-val.na {
+      color: #4a5568;
+      font-size: 11px;
+      font-weight: 400;
+    }
+
+    .rl-remaining-bar {
+      margin-top: 6px;
+    }
+
+    .rl-note {
+      margin-top: 10px;
+      font-size: 11px;
+      color: #4a5568;
+      font-style: italic;
+      padding: 6px 8px;
+      background: #0f1117;
+      border-radius: 4px;
+    }
+
+    .rl-updated {
+      font-size: 10px;
+      color: #4a5568;
+      margin-top: 8px;
+    }
   </style>
 </head>
 
@@ -744,17 +974,28 @@
       </div>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- RATE LIMITS PAGE                                                    -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
     <div class="page" id="page-limits">
-      <div class="card">
-        <h2>API Rate Limit Monitor</h2>
-        <p style="font-size:12px;color:#718096;margin-bottom:14px">Edit limits in <code>config/settings.yaml</code>
-          under <code>rate_limits</code>. Changes take effect after config reload.</p>
-        <div id="limits-list"></div>
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <h2 style="margin-bottom:0;">Model Rate Limits</h2>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-primary btn-sm" onclick="loadLimits()">↺ Refresh</button>
+            <button class="btn btn-sm" style="background:#2d3748;color:#a0aec0;" onclick="reloadConfig()">↺ Reload Config</button>
+          </div>
+        </div>
+        <p style="font-size:12px;color:#718096;">
+          Live data is captured from provider response headers after each API call.
+          Free/Paid baselines are the known documented limits — actual enforced limits reveal your tier automatically.
+          Click a model to see detailed limits.
+        </p>
       </div>
-      <div style="text-align:right">
-        <button class="btn btn-primary" onclick="reloadConfig()">↺ Reload Config</button>
-      </div>
+
+      <div class="model-grid" id="limits-list"></div>
     </div>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
 
     <div class="page" id="page-config">
       <div style="display:flex; gap:16px; margin-bottom:16px;">
@@ -856,6 +1097,7 @@
     let activeToolModule = null;
     let msAuthUrl = '';
     let googleAuthUrl = '';
+    let selectedLimitModel = null;
 
     window.addEventListener('DOMContentLoaded', () => {
       toolAce = ace.edit("tool-editor");
@@ -1170,6 +1412,18 @@
       return r.json();
     }
 
+    function _fmt(n) {
+      if (n == null) return null;
+      if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+      if (n >= 1_000) return (n / 1_000).toFixed(0) + 'K';
+      return String(n);
+    }
+
+    function _limitCell(val) {
+      if (val == null) return `<span class="rl-limit-val na">—</span>`;
+      return `<span class="rl-limit-val">${_fmt(val)}</span>`;
+    }
+
     // ─────────────────────────────────────────
     // OVERVIEW
     // ─────────────────────────────────────────
@@ -1439,37 +1693,223 @@
       renderRunsTable(runs, 'logs-table');
     }
 
+    // ═════════════════════════════════════════════════════════════════════
+    // RATE LIMITS — Model-based view
+    // ═════════════════════════════════════════════════════════════════════
+
     async function loadLimits() {
+      const list = document.getElementById('limits-list');
+      list.innerHTML = '<div style="color:#718096;text-align:center;padding:30px">Loading...</div>';
+
+      let models;
       try {
-        const states = await apiFetch('/api/rate-limits');
-        const list = document.getElementById('limits-list');
-        const entries = Object.entries(states);
-        if (entries.length === 0) {
-          list.innerHTML = '<div style="color:#718096;padding:20px;text-align:center">No API calls recorded yet</div>';
-          return;
-        }
-        list.innerHTML = entries.map(([name, s]) => {
-          const pct = Math.min(100, Math.round((s.calls_this_minute / s.max_per_minute) * 100));
-          const barColor = pct > 80 ? '#f56565' : pct > 50 ? '#ed8936' : '#48bb78';
-          return `
-            <div class="item" style="flex-direction:column;align-items:flex-start">
-              <div style="display:flex;justify-content:space-between;width:100%;margin-bottom:8px">
-                <div>
-                  <div class="item-name">${name}</div>
-                  <div class="item-meta">${s.calls_this_minute}/${s.max_per_minute} calls this minute | Total: ${s.total_calls} | Blocked: ${s.total_blocked}</div>
-                </div>
-                <div style="text-align:right;font-size:12px;color:#718096">Resets in ${s.seconds_until_reset}s</div>
-              </div>
-              <div class="progress-bar" style="width:100%">
-                <div class="progress-fill" style="width:${pct}%;background:${barColor}"></div>
-              </div>
-            </div>
-          `;
-        }).join('');
+        models = await apiFetch('/api/rate-limits/models');
       } catch (e) {
-        document.getElementById('limits-list').innerHTML = `<div style="color:#f56565;padding:20px;text-align:center">Error loading limits: ${e.message}</div>`;
+        list.innerHTML = `<div style="color:#f56565;padding:20px;text-align:center">Error loading limits: ${e.message}</div>`;
+        return;
       }
+
+      if (!models || models.length === 0) {
+        list.innerHTML = '<div style="color:#718096;text-align:center;padding:30px">No models configured.</div>';
+        return;
+      }
+
+      list.innerHTML = models.map(m => _renderLimitCard(m)).join('');
     }
+
+    function _renderLimitCard(m) {
+      // Status styling
+      let statusIcon = '✅', pillClass = 'pill-ok', statusText = 'Available';
+      let containerClass = '';
+      if (m.status === 'rate_limited') {
+        statusIcon = '⏳'; pillClass = 'pill-warn'; statusText = 'Rate Limited';
+        containerClass = 'status-rate-limited';
+      } else if (m.status === 'unavailable') {
+        statusIcon = '❌'; pillClass = 'pill-err'; statusText = 'Unavailable';
+        containerClass = 'status-unavailable';
+      } else if (m.consecutive_errors > 0) {
+        statusIcon = '⚠️'; pillClass = 'pill-warn'; statusText = `${m.consecutive_errors} Errors`;
+      }
+
+      const resetStr = m.rate_limit_reset_at
+        ? `<br><span style="font-size:10px;color:#ed8936">Resets: ${new Date(m.rate_limit_reset_at).toLocaleTimeString()}</span>`
+        : '';
+
+      const idSafe = m.name.replace(/[^a-z0-9]/gi, '-');
+      const isActive = selectedLimitModel === m.name ? 'active' : '';
+
+      // Tier tables
+      const freeHtml = _renderTierCard(m.baselines?.free, 'Free Tier', 'free-tier');
+      const paidHtml = _renderTierCard(m.baselines?.paid, 'Paid Tier', 'paid-tier');
+
+      // Live snapshot
+      const liveHtml = _renderLivePanel(m.live, m.provider);
+
+      // Note
+      const noteHtml = m.baselines?.note
+        ? `<div class="rl-note">ℹ️ ${m.baselines.note}</div>`
+        : '';
+
+      return `
+        <div class="rl-container ${containerClass}" id="rl-container-${idSafe}">
+          <div class="rl-header ${isActive}" onclick="toggleLimitModel('${m.name}')">
+            <div class="model-priority">${m.priority}</div>
+            <div class="rl-body">
+              <div class="rl-name">${statusIcon} ${m.name}</div>
+              <div class="rl-sub">${m.provider} · <span style="font-family:monospace;font-size:10px;color:#4a5568">${m.model_id}</span></div>
+              <div class="rl-stats">
+                <span>Calls: ${m.total_calls}</span>
+                <span>In: ${(m.total_input_tokens || 0).toLocaleString()}</span>
+                <span>Out: ${(m.total_output_tokens || 0).toLocaleString()}</span>
+              </div>
+              ${resetStr}
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+              <span class="pill ${pillClass}">${statusText}</span>
+              ${m.status !== 'available' ? `<button class="btn btn-success btn-sm" onclick="event.stopPropagation(); resetModelFromLimits('${m.name}')">Reset</button>` : ''}
+              <span style="font-size:10px;color:#4a5568">${isActive ? '▲ collapse' : '▼ expand'}</span>
+            </div>
+          </div>
+          <div class="rl-detail-panel ${isActive}" id="rl-detail-${idSafe}">
+            <div class="rl-tier-grid">
+              ${freeHtml}
+              ${paidHtml}
+            </div>
+            ${liveHtml}
+            ${noteHtml}
+          </div>
+        </div>
+      `;
+    }
+
+    function _renderTierCard(tier, label, cls) {
+      const title = `<div class="rl-tier-title ${cls}">${label === 'Free Tier' ? '🆓' : '💳'} ${label}</div>`;
+      if (!tier) {
+        return `<div class="rl-tier-card ${cls}">${title}<div style="color:#4a5568;font-size:11px;text-align:center;padding:8px">No documented limits</div></div>`;
+      }
+
+      const rows = [
+        ['Req / min',    tier.req_per_min],
+        ['Tokens / min', tier.tokens_per_min],
+        ['Req / hour',   tier.req_per_hour],
+        ['Tokens / hr',  tier.tokens_per_hour],
+        ['Req / day',    tier.req_per_day],
+        ['Tokens / day', tier.tokens_per_day],
+      ].filter(([, v]) => v != null);  // hide null rows to save space
+
+      if (rows.length === 0) {
+        return `<div class="rl-tier-card ${cls}">${title}<div style="color:#4a5568;font-size:11px;text-align:center;padding:8px">No documented limits</div></div>`;
+      }
+
+      const rowsHtml = rows.map(([label, val]) => `
+        <div class="rl-limit-row">
+          <span class="rl-limit-label">${label}</span>
+          ${_limitCell(val)}
+        </div>
+      `).join('');
+
+      return `<div class="rl-tier-card ${cls}">${title}${rowsHtml}</div>`;
+    }
+
+    function _renderLivePanel(live, provider) {
+      if (!live || !live.last_updated) {
+        return `
+          <div class="rl-live-panel" style="margin-top:0">
+            <div class="rl-live-title">
+              <div class="live-dot stale"></div> Live Header Data
+            </div>
+            <div style="color:#4a5568;font-size:11px;text-align:center;padding:10px">
+              No data yet — will populate after the first API call to this model
+            </div>
+          </div>`;
+      }
+
+      const age = Math.round((Date.now() / 1000) - live.last_updated);
+      const ageStr = age < 60 ? `${age}s ago` : `${Math.round(age/60)}m ago`;
+      const isStale = age > 120;
+
+      // Build the live items based on what's available
+      const items = [];
+
+      // Generic (Anthropic) or per-min (OpenAI/Groq/Cerebras)
+      const reqRem = live.req_remaining ?? live.req_remaining_per_min;
+      const reqLim = live.req_limit ?? live.req_limit_per_min;
+      const tokRem = live.tokens_remaining ?? live.tokens_remaining_per_min;
+      const tokLim = live.tokens_limit ?? live.tokens_limit_per_min;
+      const reqReset = live.req_reset ?? live.req_reset_per_min;
+      const tokReset = live.tokens_reset ?? live.tokens_reset_per_min;
+
+      if (reqRem != null) {
+        const pct = reqLim ? Math.round((reqRem / reqLim) * 100) : null;
+        const cls = pct == null ? 'ok' : pct > 50 ? 'ok' : pct > 20 ? 'warn' : 'crit';
+        items.push(`
+          <div class="rl-live-item">
+            <div class="rl-live-item-label">Requests Remaining</div>
+            <div class="rl-live-item-val ${cls}">${reqRem.toLocaleString()}${reqLim ? ' / ' + reqLim.toLocaleString() : ''}</div>
+            ${pct != null ? `<div class="rl-remaining-bar"><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${cls==='ok'?'#48bb78':cls==='warn'?'#ed8936':'#f56565'}"></div></div></div>` : ''}
+          </div>`);
+      }
+
+      if (tokRem != null) {
+        const pct = tokLim ? Math.round((tokRem / tokLim) * 100) : null;
+        const cls = pct == null ? 'ok' : pct > 50 ? 'ok' : pct > 20 ? 'warn' : 'crit';
+        items.push(`
+          <div class="rl-live-item">
+            <div class="rl-live-item-label">Tokens Remaining</div>
+            <div class="rl-live-item-val ${cls}">${_fmt(tokRem)}${tokLim ? ' / ' + _fmt(tokLim) : ''}</div>
+            ${pct != null ? `<div class="rl-remaining-bar"><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${cls==='ok'?'#48bb78':cls==='warn'?'#ed8936':'#f56565'}"></div></div></div>` : ''}
+          </div>`);
+      }
+
+      if (reqReset) {
+        items.push(`<div class="rl-live-item"><div class="rl-live-item-label">Req Reset</div><div class="rl-live-item-val" style="color:#a0aec0;font-size:11px">${reqReset}</div></div>`);
+      }
+
+      if (tokReset) {
+        items.push(`<div class="rl-live-item"><div class="rl-live-item-label">Token Reset</div><div class="rl-live-item-val" style="color:#a0aec0;font-size:11px">${tokReset}</div></div>`);
+      }
+
+      // Cerebras per-hour fields
+      if (live.tokens_remaining_per_hour != null) {
+        const rem = live.tokens_remaining_per_hour;
+        const lim = live.tokens_limit_per_hour;
+        const pct = lim ? Math.round((rem / lim) * 100) : null;
+        const cls = pct == null ? 'ok' : pct > 50 ? 'ok' : pct > 20 ? 'warn' : 'crit';
+        items.push(`
+          <div class="rl-live-item">
+            <div class="rl-live-item-label">Tokens/hr Remaining</div>
+            <div class="rl-live-item-val ${cls}">${_fmt(rem)}${lim ? ' / ' + _fmt(lim) : ''}</div>
+            ${pct != null ? `<div class="rl-remaining-bar"><div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${cls==='ok'?'#48bb78':cls==='warn'?'#ed8936':'#f56565'}"></div></div></div>` : ''}
+          </div>`);
+      }
+
+      const gridContent = items.length > 0
+        ? `<div class="rl-live-grid">${items.join('')}</div>`
+        : `<div style="color:#4a5568;font-size:11px;text-align:center;padding:8px">Provider does not expose rate limit headers</div>`;
+
+      return `
+        <div class="rl-live-panel">
+          <div class="rl-live-title">
+            <div class="live-dot ${isStale ? 'stale' : ''}"></div>
+            Live Header Data
+            <span style="color:#4a5568;font-weight:400;font-size:10px;margin-left:auto">${ageStr}</span>
+          </div>
+          ${gridContent}
+          <div class="rl-updated">Updated ${ageStr} · Refreshes automatically after each API call</div>
+        </div>`;
+    }
+
+    function toggleLimitModel(name) {
+      selectedLimitModel = (selectedLimitModel === name) ? null : name;
+      loadLimits();
+    }
+
+    async function resetModelFromLimits(name) {
+      await fetch(`/api/models/${encodeURIComponent(name)}/reset`, { method: 'POST' });
+      loadLimits();
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
 
     async function reloadConfig() {
       await fetch('/api/config/reload', { method: 'POST' });
