@@ -912,7 +912,6 @@ async def api_run_cron_now(job_id: int, request: Request, creds=Depends(verify))
 async def api_cron_runs(job_id: int, limit: int = 20, creds=Depends(verify)):
     return monitor_db.get_cron_runs(job_id, limit)
 
-
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
