@@ -5,6 +5,15 @@ Tier 1: Regex        (0 tokens)   — high-precision patterns, unambiguous terms
 Tier 2: Binary LLM   (~60 tokens) — fires only when regex is uncertain
 Tier 3: Pass-through (0 extra)    — all tools go to main agent, let it decide
 
+MULTI-STEP HANDLING (v2):
+  Requests with step connectors ("and then", "after that", "first … then") are
+  classified as multi-step. They:
+    1. Skip Tier 1 confident gate — a single regex match is never enough
+    2. Run Tier 2 with an expanded prompt asking for ALL tools needed
+    3. Merge regex matches + LLM matches so nothing is dropped
+  "check my email, then add the meeting to calendar and save notes to Drive"
+  → returns gmail_tool, google_calendar_tool, google_drive_tool (not just gmail).
+
 FOLLOW-UP HANDLING:
   "show me the nginx logs" after "check my server uptime" has no regex match,
   but Tier 2 receives:
@@ -26,6 +35,24 @@ import logging
 from core import model_router
 
 logger = logging.getLogger("tool_router")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MULTI-STEP DETECTION
+# ─────────────────────────────────────────────────────────────────────────────
+
+_MULTISTEP_RE = re.compile(
+    r"\b(then|and\s+then|after\s+that|afterwards|next\s*[,;]?"
+    r"|and\s+also|followed\s+by|once\s+(that'?s?\s+)?done"
+    r"|first\s*[,;]|second\s*[,;]|third\s*[,;]|finally\s*[,;]?|lastly"
+    r"|before\s+that|additionally|as\s+well\s+as)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_multistep(message: str) -> bool:
+    """True when the message contains connectors that imply sequential/parallel steps."""
+    return bool(_MULTISTEP_RE.search(message))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -127,8 +154,7 @@ _REGEX_MAP: dict[str, list[str]] = {
         r"\bwhat\s+do\s+i\s+(like|dislike|prefer|want|need|use|have|own)\b",
         r"\bwhat\s+am\s+i\b",
         r"\bwho\s+am\s+i\b",
-        # NOTE: "server" intentionally excluded — matched by ssh_tool instead
-        r"\bmy\s+(name|age|job|work|address|birthday|setup|phone)\b",
+        r"\bmy\s+(name|age|job|work|address|birthday|setup|server|phone)\b",
         r"\btell\s+me\s+about\s+my(self)?\b",
         r"\bwhat\s+do\s+you\s+know\s+about\s+me\b",
     ],
@@ -163,11 +189,18 @@ _CONVERSATIONAL = re.compile(
 
 
 def _tier1_regex(message: str) -> tuple[list[str], bool]:
-    """Returns (matched_tools, is_confident). Confident = 1-3 unambiguous matches."""
+    """
+    Returns (matched_tools, is_confident).
+    Confident = 1-3 matches AND not a multi-step request.
+    Multi-step requests always return confident=False to force Tier 2.
+    """
     matched = [
         tool for tool, patterns in _COMPILED.items()
         if any(p.search(message) for p in patterns)
     ]
+    # Multi-step tasks need the LLM to find ALL required tools, not just the first match
+    if _is_multistep(message):
+        return matched, False
     return matched, 1 <= len(matched) <= 3
 
 
@@ -224,12 +257,17 @@ def _extract_last_user_messages(history: list | None, n: int = 2) -> list[str]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TIER 2 — BINARY LLM (~60 tokens in, ~15 out)
+# TIER 2 — BINARY LLM (~60-80 tokens in, ~15-25 out)
 # ─────────────────────────────────────────────────────────────────────────────
 
 _BINARY_SYSTEM = (
     "Tool selector. Reply ONLY with comma-separated tool names or NONE. "
-    "No explanation, no formatting, exact names only."
+    "No explanation, no formatting, exact names only. "
+    "For multi-step requests, include ALL tools needed across every step."
+)
+
+_MULTISTEP_HINT = (
+    "This is a multi-step request. List ALL tools needed for every step, not just the first."
 )
 
 
@@ -237,6 +275,7 @@ def _build_binary_prompt(
     message: str,
     tool_defs: list[dict],
     history: list | None,
+    is_multistep: bool = False,
 ) -> str:
     lines = ["Tools:"]
     for t in tool_defs:
@@ -253,6 +292,9 @@ def _build_binary_prompt(
     if last_tool:
         lines.append(f"Last tool used: {last_tool}")
 
+    if is_multistep:
+        lines.append(_MULTISTEP_HINT)
+
     lines.append(f"Current request: {message}")
     lines.append("Tools needed:")
     return "\n".join(lines)
@@ -262,17 +304,22 @@ async def _tier2_binary(
     message: str,
     tool_defs: list[dict],
     history: list | None,
+    is_multistep: bool = False,
 ) -> tuple[list[str], dict]:
-    prompt = _build_binary_prompt(message, tool_defs, history)
+    prompt = _build_binary_prompt(message, tool_defs, history, is_multistep)
     all_names = {t["name"] for t in tool_defs}
     t0 = time.monotonic()
+
+    # Give multi-step queries slightly more output budget
+    max_out_tokens = 60 if is_multistep else 40
 
     try:
         response, model_record = await model_router.call_llm(
             messages=[{"role": "user", "content": prompt}],
             system=_BINARY_SYSTEM,
             tools=[],
-            max_tokens=40,
+            max_tokens=max_out_tokens,
+            role="router",
         )
         raw = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
         duration_ms = (time.monotonic() - t0) * 1000
@@ -315,13 +362,20 @@ async def filter_tools(
     Flow:
       Conversational shortcut → [] (0 tokens)
       Tier 1 regex confident  → matched tools (0 tokens)
-      Tier 2 binary LLM       → ~60 tokens, fires on ambiguity/no-match
+        * Multi-step tasks skip the confident gate — always escalate to Tier 2
+      Tier 2 binary LLM       → ~60-80 tokens; merges regex + LLM for multi-step
       Tier 3 pass-through     → all tools → main agent decides (0 extra tokens)
 
-    Follow-up handling:
-      Tier 2 receives last 2 user messages + last tool used from history.
-      "now show the nginx access log" after an ssh session correctly resolves
-      to ssh_tool even with zero regex match on the follow-up message.
+    Multi-step example:
+      "email John, then add the meeting to calendar, and save notes to Drive"
+        Tier 1: matches gmail_tool (not confident — multi-step detected)
+        Tier 2: returns gmail_tool, google_calendar_tool, google_drive_tool
+        Result: all three passed to the agent ✓
+
+    Follow-up example:
+      "now show the nginx access log" after an ssh session
+        Tier 1: no match
+        Tier 2: history shows last tool = ssh_tool → LLM infers ssh_tool ✓
     """
     msg = user_message.strip()
     name_map = {t["name"]: t for t in all_tool_definitions}
@@ -332,26 +386,38 @@ async def filter_tools(
         logger.info("Router: conversational → no tools")
         return [], {**zero, "method": "conversational"}
 
+    multistep = _is_multistep(msg)
+
     # Tier 1: Regex
     regex_matches, confident = _tier1_regex(msg)
     if confident:
+        # Only reached for single-step tasks (multistep always sets confident=False)
         selected = [name_map[n] for n in regex_matches if n in name_map]
         logger.info(f"Router Tier1/regex → {regex_matches}")
         return selected, zero
 
     # Tier 2: Binary LLM
-    # If regex gave partial (non-confident) matches, narrow the search space.
-    # Otherwise pass all tools so the LLM can consider everything.
-    candidates = (
-        [name_map[n] for n in regex_matches if n in name_map]
-        if regex_matches else all_tool_definitions
+    # Multi-step: always search the full tool list so no step gets missed.
+    # Single-step with partial regex: narrow to those candidates.
+    if multistep or not regex_matches:
+        candidates = all_tool_definitions
+    else:
+        candidates = [name_map[n] for n in regex_matches if n in name_map]
+
+    llm_matches, telem = await _tier2_binary(
+        msg, candidates, conversation_history, is_multistep=multistep
     )
 
-    llm_matches, telem = await _tier2_binary(msg, candidates, conversation_history)
     if llm_matches:
-        selected = [name_map[n] for n in llm_matches if n in name_map]
+        # Multi-step: merge regex hits (definite) with LLM hits (remainder)
+        if multistep and regex_matches:
+            merged = list(dict.fromkeys(regex_matches + llm_matches))  # ordered, deduped
+        else:
+            merged = llm_matches
+
+        selected = [name_map[n] for n in merged if n in name_map]
         logger.info(
-            f"Router Tier2/binary → {llm_matches} | "
+            f"Router Tier2/binary → {merged} | multistep={multistep} | "
             f"last_tool={_extract_last_tool_used(conversation_history)} | "
             f"{telem['in_tokens']} tokens"
         )

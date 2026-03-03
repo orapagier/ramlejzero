@@ -860,6 +860,8 @@
       <button class="tab" onclick="showPage('config')">Config</button>
       <button class="tab" onclick="showPage('auth')">Auth</button>
       <button class="tab" onclick="showPage('limits')">Rate Limits</button>
+      <button class="tab" onclick="showPage('monitors')">Monitors</button>
+      <button class="tab" onclick="showPage('cron')">Cron Jobs</button>
     </div>
     <span class="badge" id="health-badge">● Online</span>
   </header>
@@ -1049,7 +1051,173 @@
       </div>
     </div>
 
+
+    <!-- ═══════════════════════════════════════════════════════════ MONITORS -->
+    <div class="page" id="page-monitors">
+      <div class="stat-row">
+        <div class="stat">
+          <div class="stat-value" id="mon-s-active">—</div>
+          <div class="stat-label">Active Monitors</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="mon-s-events">—</div>
+          <div class="stat-label">Events (24h)</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="mon-s-error">—</div>
+          <div class="stat-label">In Error State</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="mon-s-total">—</div>
+          <div class="stat-label">Total Monitors</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <h2 style="margin:0">Monitors</h2>
+          <button class="btn btn-success" onclick="openMonitorModal()">＋ Add Monitor</button>
+        </div>
+        <div id="monitors-list"><div style="color:#718096;text-align:center;padding:30px">Loading…</div></div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════ CRON JOBS -->
+    <div class="page" id="page-cron">
+      <div class="stat-row">
+        <div class="stat">
+          <div class="stat-value" id="cron-s-active">—</div>
+          <div class="stat-label">Active Jobs</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="cron-s-ran">—</div>
+          <div class="stat-label">Runs (24h)</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="cron-s-total">—</div>
+          <div class="stat-label">Total Jobs</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" style="font-size:14px;color:#9ae6b4">Cron&nbsp;UTC</div>
+          <div class="stat-label">All schedules in UTC</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <h2 style="margin:0">Scheduled Jobs</h2>
+          <button class="btn btn-success" onclick="openCronModal()">＋ Add Job</button>
+        </div>
+        <div id="cron-list"><div style="color:#718096;text-align:center;padding:30px">Loading…</div></div>
+      </div>
+    </div>
+
   </main>
+
+  <!-- ═══════════════════════════════════ MONITOR MODAL ══════════════════ -->
+  <div id="monitor-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;overflow-y:auto">
+    <div style="background:#1a1d2e;border:1px solid #2d3748;border-radius:12px;width:620px;max-width:95vw;margin:40px auto;padding:28px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <h2 style="font-size:16px;font-weight:700" id="mon-modal-title">Add Monitor</h2>
+        <button onclick="closeMonitorModal()" style="background:none;border:none;color:#718096;font-size:20px;cursor:pointer">✕</button>
+      </div>
+
+      <div id="mon-modal-body">
+        <!-- Step 1: type selector -->
+        <div id="mon-step-type">
+          <label style="font-size:12px;color:#718096;display:block;margin-bottom:6px">Monitor Type</label>
+          <select id="mon-type-select" onchange="onMonTypeChange()"
+            style="width:100%;background:#242740;border:1px solid #2d3748;border-radius:6px;padding:9px 12px;color:#e2e8f0;font-size:13px;margin-bottom:16px">
+            <option value="">— select type —</option>
+          </select>
+          <div id="mon-type-desc" style="font-size:12px;color:#718096;margin-bottom:16px"></div>
+        </div>
+
+        <!-- Dynamic config fields injected here -->
+        <div id="mon-config-fields"></div>
+
+        <!-- Name + Interval (always shown after type selected) -->
+        <div id="mon-meta-fields" style="display:none">
+          <label style="font-size:12px;color:#718096;display:block;margin-bottom:4px">Monitor Name *</label>
+          <input type="text" id="mon-name" placeholder="e.g. My Facebook Page" style="margin-bottom:12px">
+
+          <label style="font-size:12px;color:#718096;display:block;margin-bottom:4px">Poll Interval (seconds) *</label>
+          <input type="text" id="mon-interval" placeholder="60" style="margin-bottom:12px">
+
+          <!-- Actions -->
+          <label style="font-size:12px;color:#718096;display:block;margin-bottom:6px">Actions</label>
+          <div id="mon-actions-list" style="margin-bottom:8px"></div>
+          <button class="btn btn-primary btn-sm" onclick="addMonitorAction()">＋ Add Action</button>
+        </div>
+
+        <div id="mon-modal-msg" style="margin-top:12px"></div>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid #2d3748">
+        <button class="btn" style="background:#2d3748;color:#e2e8f0" onclick="testMonitorConfig()">🔍 Test</button>
+        <button class="btn btn-success" onclick="saveMonitor()" id="mon-save-btn">Save Monitor</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════ CRON MODAL ════════════════════ -->
+  <div id="cron-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;overflow-y:auto">
+    <div style="background:#1a1d2e;border:1px solid #2d3748;border-radius:12px;width:580px;max-width:95vw;margin:40px auto;padding:28px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <h2 style="font-size:16px;font-weight:700" id="cron-modal-title">Add Cron Job</h2>
+        <button onclick="closeCronModal()" style="background:none;border:none;color:#718096;font-size:20px;cursor:pointer">✕</button>
+      </div>
+
+      <label style="font-size:12px;color:#718096;display:block;margin-bottom:4px">Job Name *</label>
+      <input type="text" id="cron-name" placeholder="e.g. Morning Email Summary" style="margin-bottom:12px">
+
+      <label style="font-size:12px;color:#718096;display:block;margin-bottom:4px">Cron Expression (UTC) *</label>
+      <input type="text" id="cron-expr" placeholder="0 8 * * *  ← every day 8:00 UTC" style="margin-bottom:4px">
+      <div style="font-size:11px;color:#4a5568;margin-bottom:12px">
+        Common: <code style="color:#81e6d9">0 8 * * *</code> daily 8am ·
+        <code style="color:#81e6d9">0 9 * * 1</code> Monday 9am ·
+        <code style="color:#81e6d9">*/30 * * * *</code> every 30 min
+      </div>
+
+      <label style="font-size:12px;color:#718096;display:block;margin-bottom:4px">Agent Prompt *</label>
+      <textarea id="cron-prompt"
+        style="width:100%;background:#242740;border:1px solid #2d3748;border-radius:6px;padding:9px 12px;color:#e2e8f0;font-size:13px;margin-bottom:12px;height:100px;resize:vertical"
+        placeholder="Summarize my unread emails from the past 24 hours. Highlight anything urgent."></textarea>
+
+      <label style="font-size:12px;color:#718096;display:block;margin-bottom:4px">Mode *</label>
+      <select id="cron-mode"
+        style="width:100%;background:#242740;border:1px solid #2d3748;border-radius:6px;padding:9px 12px;color:#e2e8f0;font-size:13px;margin-bottom:4px">
+        <option value="autonomous">Autonomous — run and send result automatically</option>
+        <option value="approval">Approval — notify me first, I press Run Now</option>
+      </select>
+      <div style="font-size:11px;color:#4a5568;margin-bottom:12px">
+        Approval mode notifies you via Telegram, then waits for you to press "Run Now" in the dashboard.
+      </div>
+
+      <label style="font-size:12px;color:#718096;display:block;margin-bottom:4px">Override Chat ID (optional)</label>
+      <input type="text" id="cron-chat-id" placeholder="Leave blank to use primary_user_id from settings.yaml" style="margin-bottom:4px">
+      <div style="font-size:11px;color:#4a5568;margin-bottom:16px">Your Telegram user/chat ID. Leave blank to use the default.</div>
+
+      <div id="cron-modal-msg"></div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:16px;border-top:1px solid #2d3748">
+        <button class="btn" style="background:#2d3748;color:#e2e8f0" onclick="closeCronModal()">Cancel</button>
+        <button class="btn btn-success" onclick="saveCronJob()" id="cron-save-btn">Save Job</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════ RUN HISTORY MODAL ════════════════ -->
+  <div id="history-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;overflow-y:auto">
+    <div style="background:#1a1d2e;border:1px solid #2d3748;border-radius:12px;width:700px;max-width:95vw;margin:40px auto;padding:28px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <h2 style="font-size:16px;font-weight:700" id="history-modal-title">Run History</h2>
+        <button onclick="closeHistoryModal()" style="background:none;border:none;color:#718096;font-size:20px;cursor:pointer">✕</button>
+      </div>
+      <div id="history-modal-body"><div style="color:#718096;text-align:center;padding:30px">Loading…</div></div>
+    </div>
+  </div>
+
 
   <div class="auth-modal-overlay" id="ms-auth-modal">
     <div class="auth-modal">
@@ -1917,8 +2085,677 @@
       loadOverview();
     }
 
-    loadOverview();
-    loadTools();
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // MONITORS
+    // ═══════════════════════════════════════════════════════════════════════
+
+    let _monitorTypes  = [];          // adapter metadata from /api/monitors/types
+    let _editMonitorId = null;        // null = create, number = edit
+    let _monitorActions = [];         // current actions array in modal
+
+    async function loadMonitors() {
+      const list = document.getElementById('monitors-list');
+      list.innerHTML = '<div style="color:#718096;text-align:center;padding:30px">Loading…</div>';
+
+      const [monitors, stats] = await Promise.all([
+        apiFetch('/api/monitors').catch(() => []),
+        apiFetch('/api/monitors/stats').catch(() => ({})),
+      ]);
+
+      document.getElementById('mon-s-active').textContent = stats.active ?? '—';
+      document.getElementById('mon-s-events').textContent = stats.events_24h ?? '—';
+      document.getElementById('mon-s-error').textContent  = stats.in_error  ?? '—';
+      document.getElementById('mon-s-total').textContent  = stats.total     ?? '—';
+
+      if (!monitors.length) {
+        list.innerHTML = `
+          <div style="text-align:center;padding:40px;color:#4a5568">
+            <div style="font-size:32px;margin-bottom:12px">📡</div>
+            <div style="font-size:14px;margin-bottom:8px">No monitors yet</div>
+            <div style="font-size:12px">Add a monitor to start watching for changes.</div>
+          </div>`;
+        return;
+      }
+
+      list.innerHTML = monitors.map(m => _renderMonitorRow(m)).join('');
+    }
+
+    function _renderMonitorRow(m) {
+      const statusIcon = m.error_count >= 3 ? '🔴' : m.enabled ? '🟢' : '⚫';
+      const lastRun    = m.last_run_at ? new Date(m.last_run_at + 'Z').toLocaleString() : 'Never';
+      const errorBadge = m.error_count >= 3
+        ? `<span class="pill pill-err">${m.error_count} errors</span>`
+        : m.error_count > 0
+          ? `<span class="pill pill-warn">${m.error_count} err</span>`
+          : '';
+      const typeMeta = _monitorTypes.find(t => t.type === m.type);
+      const typeLabel = typeMeta ? typeMeta.display_name : m.type;
+
+      return `
+        <div class="item" style="flex-wrap:wrap;gap:8px">
+          <div style="flex:1;min-width:200px">
+            <div class="item-name">${statusIcon} ${m.name}</div>
+            <div class="item-meta">
+              ${typeLabel} · every ${_fmtInterval(m.interval_s)}
+              ${m.events_last_day > 0 ? ` · <span style="color:#9ae6b4">${m.events_last_day} events today</span>` : ''}
+            </div>
+            <div style="margin-top:4px;font-size:11px;color:#4a5568">Last run: ${lastRun}</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            ${errorBadge}
+            <button class="btn btn-sm" style="background:#2d3748;color:#e2e8f0"
+              onclick="viewMonitorHistory(${m.id}, '${_esc(m.name)}')">History</button>
+            <button class="btn btn-sm btn-primary"
+              onclick="runMonitorNow(${m.id})">▶ Run</button>
+            <button class="btn btn-sm ${m.enabled ? 'btn-danger' : 'btn-success'}"
+              onclick="toggleMonitor(${m.id})">${m.enabled ? 'Disable' : 'Enable'}</button>
+            <button class="btn btn-sm" style="background:#2d3748;color:#e2e8f0"
+              onclick="editMonitor(${m.id})">Edit</button>
+            <button class="btn btn-sm btn-danger"
+              onclick="deleteMonitor(${m.id}, '${_esc(m.name)}')">Delete</button>
+          </div>
+        </div>`;
+    }
+
+    function _fmtInterval(s) {
+      if (s < 60) return `${s}s`;
+      if (s < 3600) return `${Math.round(s/60)}m`;
+      return `${Math.round(s/3600)}h`;
+    }
+
+    async function loadMonitorTypes() {
+      if (_monitorTypes.length) return;
+      _monitorTypes = await apiFetch('/api/monitors/types').catch(() => []);
+      const sel = document.getElementById('mon-type-select');
+      _monitorTypes.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.type;
+        opt.textContent = `${t.display_name} — ${t.description}`;
+        sel.appendChild(opt);
+      });
+    }
+
+    async function openMonitorModal(id = null) {
+      _editMonitorId = id;
+      _monitorActions = [];
+      await loadMonitorTypes();
+      document.getElementById('mon-modal-title').textContent = id ? 'Edit Monitor' : 'Add Monitor';
+      document.getElementById('mon-type-select').value = '';
+      document.getElementById('mon-type-desc').textContent = '';
+      document.getElementById('mon-config-fields').innerHTML = '';
+      document.getElementById('mon-meta-fields').style.display = 'none';
+      document.getElementById('mon-actions-list').innerHTML = '';
+      document.getElementById('mon-modal-msg').innerHTML = '';
+      document.getElementById('mon-name').value = '';
+      document.getElementById('mon-interval').value = '60';
+
+      if (id) {
+        const m = await apiFetch(`/api/monitors`).then(ms => ms.find(x => x.id === id));
+        if (m) {
+          document.getElementById('mon-type-select').value = m.type;
+          onMonTypeChange();
+          document.getElementById('mon-name').value     = m.name;
+          document.getElementById('mon-interval').value = m.interval_s;
+          document.getElementById('mon-meta-fields').style.display = 'block';
+
+          // Fill config fields
+          const cfg = typeof m.config === 'string' ? JSON.parse(m.config || '{}') : (m.config || {});
+          _fillConfigFields(cfg);
+
+          // Fill actions
+          _monitorActions = typeof m.actions === 'string' ? JSON.parse(m.actions || '[]') : (m.actions || []);
+          _renderActions();
+        }
+      }
+      document.getElementById('monitor-modal').style.display = 'block';
+    }
+
+    function closeMonitorModal() {
+      document.getElementById('monitor-modal').style.display = 'none';
+    }
+
+    function onMonTypeChange() {
+      const type = document.getElementById('mon-type-select').value;
+      const meta = _monitorTypes.find(t => t.type === type);
+      document.getElementById('mon-type-desc').textContent = meta ? meta.description : '';
+
+      if (!meta) {
+        document.getElementById('mon-config-fields').innerHTML = '';
+        document.getElementById('mon-meta-fields').style.display = 'none';
+        return;
+      }
+
+      _renderConfigFields(meta.schema.fields || []);
+      document.getElementById('mon-meta-fields').style.display = 'block';
+    }
+
+    function _renderConfigFields(fields) {
+      const container = document.getElementById('mon-config-fields');
+      container.innerHTML = '';
+
+      fields.forEach(f => {
+        const wrap = document.createElement('div');
+        wrap.style.marginBottom = '12px';
+
+        const label = document.createElement('label');
+        label.style.cssText = 'font-size:12px;color:#718096;display:block;margin-bottom:4px';
+        label.textContent = f.label + (f.required ? ' *' : '');
+        wrap.appendChild(label);
+
+        if (f.type === 'text' || f.type === 'number') {
+          const inp = document.createElement('input');
+          inp.type = 'text';
+          inp.id   = `cfg_${f.key}`;
+          inp.value = f.default !== undefined ? f.default : '';
+          inp.style.marginBottom = '0';
+          wrap.appendChild(inp);
+
+        } else if (f.type === 'textarea') {
+          const ta = document.createElement('textarea');
+          ta.id    = `cfg_${f.key}`;
+          ta.value = f.default !== undefined ? f.default : '';
+          ta.style.cssText = 'width:100%;background:#242740;border:1px solid #2d3748;border-radius:6px;padding:9px 12px;color:#e2e8f0;font-size:13px;height:80px;resize:vertical';
+          wrap.appendChild(ta);
+
+        } else if (f.type === 'checkbox') {
+          const inp = document.createElement('input');
+          inp.type    = 'checkbox';
+          inp.id      = `cfg_${f.key}`;
+          inp.checked = f.default !== undefined ? f.default : false;
+          inp.style.marginRight = '8px';
+          label.style.display = 'inline';
+          wrap.insertBefore(inp, label);
+
+        } else if (f.type === 'select') {
+          const sel = document.createElement('select');
+          sel.id    = `cfg_${f.key}`;
+          sel.style.cssText = 'width:100%;background:#242740;border:1px solid #2d3748;border-radius:6px;padding:9px 12px;color:#e2e8f0;font-size:13px';
+          (f.options || []).forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o; opt.textContent = o;
+            if (o === f.default) opt.selected = true;
+            sel.appendChild(opt);
+          });
+          wrap.appendChild(sel);
+
+        } else if (f.type === 'multiselect') {
+          const div = document.createElement('div');
+          div.id = `cfg_${f.key}`;
+          div.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px';
+          (f.options || []).forEach(o => {
+            const lbl = document.createElement('label');
+            lbl.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:12px;color:#e2e8f0;cursor:pointer';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox'; cb.value = o;
+            if ((f.default || []).includes(o)) cb.checked = true;
+            lbl.appendChild(cb);
+            lbl.appendChild(document.createTextNode(o));
+            div.appendChild(lbl);
+          });
+          wrap.appendChild(div);
+
+        } else if (f.type === 'targets_list') {
+          wrap.appendChild(_buildTargetsTable(f.key));
+        }
+
+        if (f.help) {
+          const hint = document.createElement('div');
+          hint.style.cssText = 'font-size:11px;color:#4a5568;margin-top:3px';
+          hint.textContent = f.help;
+          wrap.appendChild(hint);
+        }
+
+        container.appendChild(wrap);
+      });
+    }
+
+    function _buildTargetsTable(key) {
+      const wrap = document.createElement('div');
+      wrap.id = `cfg_${key}`;
+      wrap.innerHTML = `
+        <div id="targets-rows" style="margin-bottom:8px"></div>
+        <button type="button" class="btn btn-primary btn-sm" onclick="addTargetRow()">＋ Add URL</button>`;
+      return wrap;
+    }
+
+    function addTargetRow(name='', url='', status='200', timeout='5') {
+      const container = document.getElementById('targets-rows');
+      const idx = container.children.length;
+      const row = document.createElement('div');
+      row.style.cssText = 'display:grid;grid-template-columns:1fr 2fr 80px 60px 28px;gap:6px;margin-bottom:6px;align-items:center';
+      row.innerHTML = `
+        <input type="text" placeholder="Name" value="${_esc(name)}"
+          style="background:#242740;border:1px solid #2d3748;border-radius:4px;padding:6px 8px;color:#e2e8f0;font-size:12px;margin-bottom:0" class="tr-name">
+        <input type="text" placeholder="https://…" value="${_esc(url)}"
+          style="background:#242740;border:1px solid #2d3748;border-radius:4px;padding:6px 8px;color:#e2e8f0;font-size:12px;margin-bottom:0" class="tr-url">
+        <input type="text" placeholder="200" value="${_esc(status)}"
+          style="background:#242740;border:1px solid #2d3748;border-radius:4px;padding:6px 8px;color:#e2e8f0;font-size:12px;margin-bottom:0" class="tr-status">
+        <input type="text" placeholder="5" value="${_esc(timeout)}"
+          style="background:#242740;border:1px solid #2d3748;border-radius:4px;padding:6px 8px;color:#e2e8f0;font-size:12px;margin-bottom:0" class="tr-timeout">
+        <button onclick="this.parentElement.remove()" style="background:#742a2a;color:#feb2b2;border:none;border-radius:4px;padding:4px 6px;cursor:pointer;font-size:12px">✕</button>`;
+      container.appendChild(row);
+    }
+
+    function _getTargets() {
+      const rows = document.querySelectorAll('#targets-rows > div');
+      return Array.from(rows).map(r => ({
+        name:            r.querySelector('.tr-name').value.trim(),
+        url:             r.querySelector('.tr-url').value.trim(),
+        expected_status: parseInt(r.querySelector('.tr-status').value) || 200,
+        timeout_s:       parseFloat(r.querySelector('.tr-timeout').value) || 5,
+      })).filter(t => t.url);
+    }
+
+    function _fillConfigFields(cfg) {
+      const type = document.getElementById('mon-type-select').value;
+      const meta = _monitorTypes.find(t => t.type === type);
+      if (!meta) return;
+
+      (meta.schema.fields || []).forEach(f => {
+        const el = document.getElementById(`cfg_${f.key}`);
+        if (!el || !(f.key in cfg)) return;
+        const val = cfg[f.key];
+
+        if (f.type === 'checkbox' && el.tagName === 'INPUT') {
+          el.checked = !!val;
+        } else if (f.type === 'multiselect') {
+          const vals = Array.isArray(val) ? val : [];
+          el.querySelectorAll('input[type=checkbox]').forEach(cb => {
+            cb.checked = vals.includes(cb.value);
+          });
+        } else if (f.type === 'targets_list') {
+          const targets = Array.isArray(val) ? val : [];
+          targets.forEach(t => addTargetRow(t.name, t.url, t.expected_status, t.timeout_s));
+        } else if (el.tagName !== 'INPUT' || el.type !== 'checkbox') {
+          el.value = typeof val === 'object' ? JSON.stringify(val) : val;
+        }
+      });
+    }
+
+    function _readConfigFields() {
+      const type = document.getElementById('mon-type-select').value;
+      const meta = _monitorTypes.find(t => t.type === type);
+      if (!meta) return {};
+      const cfg = {};
+
+      (meta.schema.fields || []).forEach(f => {
+        const el = document.getElementById(`cfg_${f.key}`);
+        if (!el) return;
+
+        if (f.type === 'checkbox') {
+          cfg[f.key] = el.checked;
+        } else if (f.type === 'number') {
+          cfg[f.key] = parseFloat(el.value) || 0;
+        } else if (f.type === 'multiselect') {
+          cfg[f.key] = Array.from(el.querySelectorAll('input:checked')).map(c => c.value);
+        } else if (f.type === 'targets_list') {
+          cfg[f.key] = _getTargets();
+        } else {
+          cfg[f.key] = el.value;
+        }
+      });
+      return cfg;
+    }
+
+    // Actions ──────────────────────────────────────────────────────────────
+
+    function _renderActions() {
+      const container = document.getElementById('mon-actions-list');
+      container.innerHTML = '';
+      _monitorActions.forEach((a, i) => {
+        const div = document.createElement('div');
+        div.style.cssText = 'background:#242740;border:1px solid #2d3748;border-radius:6px;padding:10px 12px;margin-bottom:8px';
+        div.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <select onchange="onActionTypeChange(${i}, this.value)"
+              style="background:#1a1d2e;border:1px solid #2d3748;border-radius:4px;padding:5px 8px;color:#e2e8f0;font-size:12px">
+              <option value="notify_telegram" ${a.type==='notify_telegram'?'selected':''}>📩 Notify Telegram</option>
+              <option value="run_agent" ${a.type==='run_agent'?'selected':''}>🤖 Run Agent</option>
+            </select>
+            <button onclick="removeAction(${i})" style="background:#742a2a;color:#feb2b2;border:none;border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px">Remove</button>
+          </div>
+          <div id="action-extra-${i}">${_renderActionExtras(a, i)}</div>`;
+        container.appendChild(div);
+      });
+    }
+
+    function _renderActionExtras(a, i) {
+      const chatInput = `
+        <label style="font-size:11px;color:#718096">Override Chat ID (blank = primary user)</label>
+        <input type="text" id="act-chat-${i}" value="${a.chat_id || ''}"
+          placeholder="blank = use primary_user_id"
+          style="background:#1a1d2e;border:1px solid #2d3748;border-radius:4px;padding:5px 8px;color:#e2e8f0;font-size:12px;width:100%;margin-top:3px;margin-bottom:0">`;
+      if (a.type === 'run_agent') {
+        return chatInput + `
+          <label style="font-size:11px;color:#718096;margin-top:6px;display:block">Prompt Template</label>
+          <textarea id="act-prompt-${i}"
+            style="background:#1a1d2e;border:1px solid #2d3748;border-radius:4px;padding:5px 8px;color:#e2e8f0;font-size:12px;width:100%;height:70px;resize:vertical;margin-top:3px"
+            placeholder="Use {title}, {body}, {severity}, {monitor_name}">${a.prompt_template || ''}</textarea>`;
+      }
+      return chatInput;
+    }
+
+    function onActionTypeChange(i, type) {
+      _monitorActions[i].type = type;
+      _renderActions();
+    }
+
+    function addMonitorAction() {
+      _monitorActions.push({ type: 'notify_telegram', chat_id: '' });
+      _renderActions();
+    }
+
+    function removeAction(i) {
+      _monitorActions.splice(i, 1);
+      _renderActions();
+    }
+
+    function _readActions() {
+      return _monitorActions.map((a, i) => {
+        const chatEl   = document.getElementById(`act-chat-${i}`);
+        const promptEl = document.getElementById(`act-prompt-${i}`);
+        return {
+          type:            a.type,
+          chat_id:         chatEl   ? (chatEl.value.trim() || null)   : null,
+          prompt_template: promptEl ? promptEl.value.trim() : undefined,
+        };
+      });
+    }
+
+    // Save / Test ──────────────────────────────────────────────────────────
+
+    async function testMonitorConfig() {
+      const type = document.getElementById('mon-type-select').value;
+      if (!type) { _monMsg('Select a monitor type first', 'err'); return; }
+      const config = _readConfigFields();
+      _monMsg('Testing…', '');
+      const res = await apiFetch('/api/monitors/test', { method: 'POST', body: JSON.stringify({ type, config }) }).catch(e => ({ok: false, message: e.message}));
+      _monMsg(res.ok ? `✅ ${res.message}` : `❌ ${res.message}`, res.ok ? 'ok' : 'err');
+    }
+
+    async function saveMonitor() {
+      const type     = document.getElementById('mon-type-select').value;
+      const name     = document.getElementById('mon-name').value.trim();
+      const interval = parseInt(document.getElementById('mon-interval').value) || 60;
+      if (!type)  { _monMsg('Select a monitor type', 'err'); return; }
+      if (!name)  { _monMsg('Enter a monitor name', 'err'); return; }
+
+      const payload = {
+        name, type,
+        config:     _readConfigFields(),
+        actions:    _readActions(),
+        interval_s: interval,
+      };
+
+      const url    = _editMonitorId ? `/api/monitors/${_editMonitorId}` : '/api/monitors';
+      const method = _editMonitorId ? 'PUT' : 'POST';
+
+      const res = await apiFetch(url, { method, body: JSON.stringify(payload) }).catch(e => ({error: e.message}));
+      if (res.error || res.detail) { _monMsg(`❌ ${res.error || res.detail}`, 'err'); return; }
+
+      closeMonitorModal();
+      loadMonitors();
+    }
+
+    function _monMsg(text, type) {
+      const el = document.getElementById('mon-modal-msg');
+      el.className  = 'status-msg' + (type ? ' ' + type : '');
+      el.textContent = text;
+      el.style.display = text ? 'block' : 'none';
+    }
+
+    async function toggleMonitor(id) {
+      await apiFetch(`/api/monitors/${id}/toggle`, { method: 'POST' });
+      loadMonitors();
+    }
+
+    async function deleteMonitor(id, name) {
+      if (!confirm(`Delete monitor "${name}"?`)) return;
+      await apiFetch(`/api/monitors/${id}`, { method: 'DELETE' });
+      loadMonitors();
+    }
+
+    async function runMonitorNow(id) {
+      await apiFetch(`/api/monitors/${id}/run-now`, { method: 'POST' });
+      setTimeout(loadMonitors, 2000);
+    }
+
+    function editMonitor(id) { openMonitorModal(id); }
+
+    async function viewMonitorHistory(id, name) {
+      document.getElementById('history-modal-title').textContent = `History — ${name}`;
+      document.getElementById('history-modal-body').innerHTML =
+        '<div style="color:#718096;text-align:center;padding:30px">Loading…</div>';
+      document.getElementById('history-modal').style.display = 'block';
+
+      const runs = await apiFetch(`/api/monitors/${id}/runs`).catch(() => []);
+      if (!runs.length) {
+        document.getElementById('history-modal-body').innerHTML =
+          '<div style="color:#718096;text-align:center;padding:30px">No runs yet.</div>';
+        return;
+      }
+      document.getElementById('history-modal-body').innerHTML = `
+        <table>
+          <thead><tr><th>Time</th><th>Events</th><th>Actions</th><th>Duration</th><th>Status</th><th>Error</th></tr></thead>
+          <tbody>${runs.map(r => `
+            <tr>
+              <td style="font-size:11px">${r.ran_at.replace('T',' ').slice(0,19)}</td>
+              <td><span style="color:${r.events_found>0?'#9ae6b4':'#718096'}">${r.events_found}</span></td>
+              <td>${r.actions_taken}</td>
+              <td>${r.duration_ms ? r.duration_ms.toFixed(0)+'ms' : '—'}</td>
+              <td>${r.success ? '<span class="pill pill-ok">OK</span>' : '<span class="pill pill-err">Failed</span>'}</td>
+              <td style="font-size:11px;color:#f56565;max-width:200px;overflow:hidden;text-overflow:ellipsis">${r.error || ''}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`;
+    }
+
+    function closeHistoryModal() {
+      document.getElementById('history-modal').style.display = 'none';
+    }
+
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // CRON JOBS
+    // ═══════════════════════════════════════════════════════════════════════
+
+    let _editCronId = null;
+
+    async function loadCronJobs() {
+      const list = document.getElementById('cron-list');
+      list.innerHTML = '<div style="color:#718096;text-align:center;padding:30px">Loading…</div>';
+
+      const [jobs, stats] = await Promise.all([
+        apiFetch('/api/cron').catch(() => []),
+        apiFetch('/api/cron/stats').catch(() => ({})),
+      ]);
+
+      document.getElementById('cron-s-active').textContent = stats.active ?? '—';
+      document.getElementById('cron-s-ran').textContent    = stats.ran_24h ?? '—';
+      document.getElementById('cron-s-total').textContent  = stats.total   ?? '—';
+
+      if (!jobs.length) {
+        list.innerHTML = `
+          <div style="text-align:center;padding:40px;color:#4a5568">
+            <div style="font-size:32px;margin-bottom:12px">⏰</div>
+            <div style="font-size:14px;margin-bottom:8px">No scheduled jobs yet</div>
+            <div style="font-size:12px">Add a cron job to automate AI tasks on a schedule.</div>
+          </div>`;
+        return;
+      }
+
+      list.innerHTML = jobs.map(j => _renderCronRow(j)).join('');
+    }
+
+    function _renderCronRow(j) {
+      const lastRun = j.last_run_at ? new Date(j.last_run_at + 'Z').toLocaleString() : 'Never';
+      const nextRun = j.next_run_at ? new Date(j.next_run_at).toLocaleString() : '—';
+      const modeIcon = j.mode === 'autonomous' ? '🤖' : '✋';
+      const modeLabel = j.mode === 'autonomous' ? 'Autonomous' : 'Approval';
+      const statusIcon = j.enabled ? '🟢' : '⚫';
+
+      return `
+        <div class="item" style="flex-wrap:wrap;gap:8px">
+          <div style="flex:1;min-width:220px">
+            <div class="item-name">${statusIcon} ${j.name}</div>
+            <div class="item-meta">
+              <code style="color:#81e6d9">${j.cron_expr}</code>
+              · ${modeIcon} ${modeLabel}
+            </div>
+            <div style="font-size:11px;color:#4a5568;margin-top:4px">
+              Last: ${lastRun} · Next: ${nextRun}
+            </div>
+            <div style="font-size:11px;color:#718096;margin-top:3px;white-space:pre-wrap;word-break:break-word;max-height:40px;overflow:hidden">
+              ${_esc(j.prompt.slice(0, 120))}${j.prompt.length > 120 ? '…' : ''}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <button class="btn btn-sm" style="background:#2d3748;color:#e2e8f0"
+              onclick="viewCronHistory(${j.id}, '${_esc(j.name)}')">History</button>
+            <button class="btn btn-sm btn-primary"
+              onclick="runCronNow(${j.id})">▶ Run Now</button>
+            <button class="btn btn-sm ${j.enabled ? 'btn-danger' : 'btn-success'}"
+              onclick="toggleCronJob(${j.id})">${j.enabled ? 'Disable' : 'Enable'}</button>
+            <button class="btn btn-sm" style="background:#2d3748;color:#e2e8f0"
+              onclick="editCronJob(${j.id})">Edit</button>
+            <button class="btn btn-sm btn-danger"
+              onclick="deleteCronJob(${j.id}, '${_esc(j.name)}')">Delete</button>
+          </div>
+        </div>`;
+    }
+
+    function openCronModal(id = null) {
+      _editCronId = id;
+      document.getElementById('cron-modal-title').textContent = id ? 'Edit Cron Job' : 'Add Cron Job';
+      document.getElementById('cron-name').value    = '';
+      document.getElementById('cron-expr').value    = '';
+      document.getElementById('cron-prompt').value  = '';
+      document.getElementById('cron-mode').value    = 'autonomous';
+      document.getElementById('cron-chat-id').value = '';
+      document.getElementById('cron-modal-msg').innerHTML = '';
+      document.getElementById('cron-modal').style.display = 'block';
+    }
+
+    function closeCronModal() {
+      document.getElementById('cron-modal').style.display = 'none';
+    }
+
+    async function editCronJob(id) {
+      const jobs = await apiFetch('/api/cron').catch(() => []);
+      const j    = jobs.find(x => x.id === id);
+      if (!j) return;
+      openCronModal(id);
+      document.getElementById('cron-name').value    = j.name;
+      document.getElementById('cron-expr').value    = j.cron_expr;
+      document.getElementById('cron-prompt').value  = j.prompt;
+      document.getElementById('cron-mode').value    = j.mode || 'autonomous';
+      document.getElementById('cron-chat-id').value = j.chat_id || '';
+    }
+
+    async function saveCronJob() {
+      const name    = document.getElementById('cron-name').value.trim();
+      const expr    = document.getElementById('cron-expr').value.trim();
+      const prompt  = document.getElementById('cron-prompt').value.trim();
+      const mode    = document.getElementById('cron-mode').value;
+      const chat_id = document.getElementById('cron-chat-id').value.trim() || null;
+
+      if (!name)   { _cronMsg('Enter a job name', 'err'); return; }
+      if (!expr)   { _cronMsg('Enter a cron expression', 'err'); return; }
+      if (!prompt) { _cronMsg('Enter an agent prompt', 'err'); return; }
+
+      const url    = _editCronId ? `/api/cron/${_editCronId}` : '/api/cron';
+      const method = _editCronId ? 'PUT' : 'POST';
+      const res = await apiFetch(url, {
+        method,
+        body: JSON.stringify({ name, cron_expr: expr, prompt, mode, chat_id }),
+      }).catch(e => ({ detail: e.message }));
+
+      if (res.detail || res.error) {
+        _cronMsg(`❌ ${res.detail || res.error}`, 'err');
+        return;
+      }
+      closeCronModal();
+      loadCronJobs();
+    }
+
+    function _cronMsg(text, type) {
+      const el = document.getElementById('cron-modal-msg');
+      el.className   = 'status-msg' + (type ? ' ' + type : '');
+      el.textContent = text;
+      el.style.display = text ? 'block' : 'none';
+    }
+
+    async function toggleCronJob(id) {
+      await apiFetch(`/api/cron/${id}/toggle`, { method: 'POST' });
+      loadCronJobs();
+    }
+
+    async function deleteCronJob(id, name) {
+      if (!confirm(`Delete job "${name}"?`)) return;
+      await apiFetch(`/api/cron/${id}`, { method: 'DELETE' });
+      loadCronJobs();
+    }
+
+    async function runCronNow(id) {
+      await apiFetch(`/api/cron/${id}/run-now`, { method: 'POST' });
+      alert('Job triggered — check Telegram for results.');
+    }
+
+    async function viewCronHistory(id, name) {
+      document.getElementById('history-modal-title').textContent = `History — ${name}`;
+      document.getElementById('history-modal-body').innerHTML =
+        '<div style="color:#718096;text-align:center;padding:30px">Loading…</div>';
+      document.getElementById('history-modal').style.display = 'block';
+
+      const runs = await apiFetch(`/api/cron/${id}/runs`).catch(() => []);
+      if (!runs.length) {
+        document.getElementById('history-modal-body').innerHTML =
+          '<div style="color:#718096;text-align:center;padding:30px">No runs yet.</div>';
+        return;
+      }
+      document.getElementById('history-modal-body').innerHTML = `
+        <table>
+          <thead><tr><th>Time</th><th>Mode</th><th>Duration</th><th>Status</th><th>Result / Error</th></tr></thead>
+          <tbody>${runs.map(r => `
+            <tr>
+              <td style="font-size:11px">${r.ran_at.replace('T',' ').slice(0,19)}</td>
+              <td><span class="pill ${r.mode?.includes('approval') ? 'pill-warn' : 'pill-ok'}" style="font-size:10px">${r.mode || '—'}</span></td>
+              <td>${r.duration_ms ? r.duration_ms.toFixed(0)+'ms' : '—'}</td>
+              <td>${r.success ? '<span class="pill pill-ok">OK</span>' : '<span class="pill pill-err">Failed</span>'}</td>
+              <td style="font-size:11px;max-width:300px">
+                ${r.error
+                  ? `<span style="color:#f56565">${_esc(r.error.slice(0,200))}</span>`
+                  : `<span style="color:#a0aec0;white-space:pre-wrap">${_esc((r.result_text||'').slice(0,200))}</span>`}
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`;
+    }
+
+    // ── Shared helpers ─────────────────────────────────────────────────────
+
+    function _esc(s) {
+      return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    // ── Tab load integration ───────────────────────────────────────────────
+
+    // Patch showPage to load data when monitor/cron tabs are activated
+    const _origShowPage = showPage;
+    showPage = function(name) {
+      _origShowPage(name);
+      if (name === 'monitors') { loadMonitorTypes().then(loadMonitors); }
+      if (name === 'cron')     { loadCronJobs(); }
+    };
+
+    // Auto-refresh monitors list every 30s when tab is active
+    setInterval(() => {
+      if (document.getElementById('page-monitors').classList.contains('active')) loadMonitors();
+      if (document.getElementById('page-cron').classList.contains('active')) loadCronJobs();
+    }, 30000);
+
+
     setInterval(loadOverview, 15000);
     setInterval(() => {
       if (document.getElementById('page-limits').classList.contains('active')) loadLimits();

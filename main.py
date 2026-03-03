@@ -21,6 +21,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 import uvicorn
 
 import agent
+from core import scheduler
 from core import logger as log_module
 from core import rate_limiter
 from core import model_router
@@ -185,18 +186,21 @@ async def lifespan(app: FastAPI):
     platform = get_platform()
     platform.set_message_handler(handle_incoming)
     platform.register_webhook(api)
-
     await platform.start(app)
     logger.info(f"Messaging platform started: {platform.name}")
-
     app.state.platform = platform
+
+    # ── Proactive scheduler ──
+    _engine, _cron = await scheduler.start(platform)
+    app.state.monitor_engine = _engine
+    app.state.cron_manager   = _cron
+    # ─────────────────────────
 
     watcher = asyncio.create_task(_token_expiry_watcher(platform))
     logger.info("Token expiry watcher started")
-
     yield
-
     watcher.cancel()
+    await scheduler.stop(_engine, _cron)
     await platform.stop()
 
 
@@ -685,6 +689,228 @@ async def api_messaging_current(creds=Depends(verify)):
         "platform": cfg.get("platform", "telegram"),
         "primary_user_id": cfg.get("primary_user_id"),
     }
+
+# ════════════════════════════════════════════════════════════════════════════
+# MONITOR ROUTES
+# ════════════════════════════════════════════════════════════════════════════
+
+from fastapi import Request, HTTPException, Depends
+from core import monitor_db
+from monitors import get_all_types, get_adapter
+import json
+
+
+@api.get("/api/monitors/types")
+async def api_monitor_types(creds=Depends(verify)):
+    """All registered adapter types + their config schemas (for dashboard form builder)."""
+    return get_all_types()
+
+
+@api.get("/api/monitors")
+async def api_list_monitors(creds=Depends(verify)):
+    return monitor_db.get_all_monitors()
+
+
+@api.get("/api/monitors/stats")
+async def api_monitor_stats(creds=Depends(verify)):
+    return monitor_db.get_monitor_stats()
+
+
+@api.post("/api/monitors")
+async def api_create_monitor(request: Request, creds=Depends(verify)):
+    data = await request.json()
+    required = ("name", "type", "interval_s")
+    for f in required:
+        if f not in data:
+            raise HTTPException(400, f"Missing field: {f}")
+
+    monitor_id = monitor_db.create_monitor(
+        name       = data["name"],
+        type_      = data["type"],
+        config     = data.get("config", {}),
+        actions    = data.get("actions", []),
+        interval_s = int(data["interval_s"]),
+    )
+
+    # Hot-reload engine
+    request.app.state.monitor_engine.reload()
+    return {"id": monitor_id, "status": "created"}
+
+
+@api.put("/api/monitors/{monitor_id}")
+async def api_update_monitor(monitor_id: int, request: Request, creds=Depends(verify)):
+    data = await request.json()
+    if not monitor_db.get_monitor(monitor_id):
+        raise HTTPException(404, "Monitor not found")
+
+    # Normalise JSON fields coming as strings or dicts
+    for field in ("config", "actions"):
+        if field in data and isinstance(data[field], str):
+            try:
+                data[field] = json.loads(data[field])
+            except Exception:
+                pass
+
+    monitor_db.update_monitor(monitor_id, **data)
+    request.app.state.monitor_engine.reload()
+    return {"status": "updated"}
+
+
+@api.delete("/api/monitors/{monitor_id}")
+async def api_delete_monitor(monitor_id: int, request: Request, creds=Depends(verify)):
+    if not monitor_db.get_monitor(monitor_id):
+        raise HTTPException(404, "Monitor not found")
+    monitor_db.delete_monitor(monitor_id)
+    request.app.state.monitor_engine.reload()
+    return {"status": "deleted"}
+
+
+@api.post("/api/monitors/{monitor_id}/toggle")
+async def api_toggle_monitor(monitor_id: int, request: Request, creds=Depends(verify)):
+    m = monitor_db.get_monitor(monitor_id)
+    if not m:
+        raise HTTPException(404, "Monitor not found")
+    new_state = 0 if m["enabled"] else 1
+    monitor_db.update_monitor(monitor_id, enabled=new_state)
+    request.app.state.monitor_engine.reload()
+    return {"enabled": bool(new_state)}
+
+
+@api.post("/api/monitors/{monitor_id}/run-now")
+async def api_run_monitor_now(monitor_id: int, request: Request, creds=Depends(verify)):
+    if not monitor_db.get_monitor(monitor_id):
+        raise HTTPException(404, "Monitor not found")
+    import asyncio
+    asyncio.create_task(
+        request.app.state.monitor_engine.run_monitor_now(monitor_id),
+        name=f"manual-poll-{monitor_id}",
+    )
+    return {"status": "triggered"}
+
+
+@api.post("/api/monitors/{monitor_id}/reset-cursor")
+async def api_reset_monitor_cursor(monitor_id: int, creds=Depends(verify)):
+    """Clear cursor so next poll re-scans from scratch."""
+    if not monitor_db.get_monitor(monitor_id):
+        raise HTTPException(404, "Monitor not found")
+    monitor_db.reset_monitor_state(monitor_id)
+    return {"status": "cursor_cleared"}
+
+
+@api.get("/api/monitors/{monitor_id}/runs")
+async def api_monitor_runs(monitor_id: int, limit: int = 30, creds=Depends(verify)):
+    return monitor_db.get_monitor_runs(monitor_id, limit)
+
+
+@api.post("/api/monitors/test")
+async def api_test_monitor(request: Request, creds=Depends(verify)):
+    """Test a monitor config without saving it."""
+    data    = await request.json()
+    type_   = data.get("type")
+    config  = data.get("config", {})
+    adapter = get_adapter(type_)
+    if not adapter:
+        raise HTTPException(400, f"Unknown monitor type: {type_}")
+    result = await adapter.test(config)
+    return result
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# CRON JOB ROUTES
+# ════════════════════════════════════════════════════════════════════════════
+
+@api.get("/api/cron")
+async def api_list_cron_jobs(request: Request, creds=Depends(verify)):
+    return request.app.state.cron_manager.get_all_statuses()
+
+
+@api.get("/api/cron/stats")
+async def api_cron_stats(creds=Depends(verify)):
+    return monitor_db.get_cron_stats()
+
+
+@api.post("/api/cron")
+async def api_create_cron_job(request: Request, creds=Depends(verify)):
+    data = await request.json()
+    for f in ("name", "cron_expr", "prompt"):
+        if not data.get(f):
+            raise HTTPException(400, f"Missing field: {f}")
+
+    # Basic cron validation
+    from core.cron_manager import _HAS_APSCHEDULER
+    if _HAS_APSCHEDULER:
+        from apscheduler.triggers.cron import CronTrigger
+        try:
+            CronTrigger.from_crontab(data["cron_expr"], timezone="UTC")
+        except Exception as e:
+            raise HTTPException(400, f"Invalid cron expression: {e}")
+
+    job_id = monitor_db.create_cron_job(
+        name      = data["name"],
+        cron_expr = data["cron_expr"],
+        prompt    = data["prompt"],
+        mode      = data.get("mode", "autonomous"),
+        chat_id   = data.get("chat_id") or None,
+    )
+    request.app.state.cron_manager.reload()
+    return {"id": job_id, "status": "created"}
+
+
+@api.put("/api/cron/{job_id}")
+async def api_update_cron_job(job_id: int, request: Request, creds=Depends(verify)):
+    data = await request.json()
+    if not monitor_db.get_cron_job(job_id):
+        raise HTTPException(404, "Cron job not found")
+
+    if "cron_expr" in data:
+        from core.cron_manager import _HAS_APSCHEDULER
+        if _HAS_APSCHEDULER:
+            from apscheduler.triggers.cron import CronTrigger
+            try:
+                CronTrigger.from_crontab(data["cron_expr"], timezone="UTC")
+            except Exception as e:
+                raise HTTPException(400, f"Invalid cron expression: {e}")
+
+    monitor_db.update_cron_job(job_id, **data)
+    request.app.state.cron_manager.reload()
+    return {"status": "updated"}
+
+
+@api.delete("/api/cron/{job_id}")
+async def api_delete_cron_job(job_id: int, request: Request, creds=Depends(verify)):
+    if not monitor_db.get_cron_job(job_id):
+        raise HTTPException(404, "Cron job not found")
+    monitor_db.delete_cron_job(job_id)
+    request.app.state.cron_manager.reload()
+    return {"status": "deleted"}
+
+
+@api.post("/api/cron/{job_id}/toggle")
+async def api_toggle_cron_job(job_id: int, request: Request, creds=Depends(verify)):
+    job = monitor_db.get_cron_job(job_id)
+    if not job:
+        raise HTTPException(404, "Cron job not found")
+    new_state = 0 if job["enabled"] else 1
+    monitor_db.update_cron_job(job_id, enabled=new_state)
+    request.app.state.cron_manager.reload()
+    return {"enabled": bool(new_state)}
+
+
+@api.post("/api/cron/{job_id}/run-now")
+async def api_run_cron_now(job_id: int, request: Request, creds=Depends(verify)):
+    if not monitor_db.get_cron_job(job_id):
+        raise HTTPException(404, "Cron job not found")
+    import asyncio
+    asyncio.create_task(
+        request.app.state.cron_manager.run_job_now(job_id),
+        name=f"manual-cron-{job_id}",
+    )
+    return {"status": "triggered"}
+
+
+@api.get("/api/cron/{job_id}/runs")
+async def api_cron_runs(job_id: int, limit: int = 20, creds=Depends(verify)):
+    return monitor_db.get_cron_runs(job_id, limit)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

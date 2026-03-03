@@ -2,8 +2,17 @@
 agent.py — Core agent loop.
 Add tools by dropping .py files in tools/.
 Add/change AI models in config/models.yaml.
+
+v2 improvements:
+  - Prompt template cached at startup (no disk I/O per call)
+  - Parallel tool execution  : multiple tool_use blocks run concurrently
+  - Task planner             : complex multi-step tasks get an upfront plan
+  - Tool retry               : transient failures retry once before surfacing
+  - Structured tool results  : status/duration metadata helps the model reason
 """
+import asyncio
 import os
+import re
 import time
 from datetime import datetime
 from core.schemas import AgentResponse, ToolCallLog, ToolResult
@@ -18,9 +27,8 @@ import pytz
 
 logger = get_logger("agent")
 
-# ── System prompt template cache ──
-# The file is read once at startup. format_map() still runs per call
-# to inject the current time, location, and account — but disk I/O is eliminated.
+# ── System prompt template cache ──────────────────────────────────────────────
+# Read once at startup; format_map() still runs per call to inject time/location.
 _PROMPT_TEMPLATE: str | None = None
 
 
@@ -52,9 +60,7 @@ def _build_system_prompt() -> str:
     tz = pytz.timezone(tz_name)
     now = datetime.now(tz).strftime("%A, %B %d, %Y, %I:%M %p")
 
-    template = _get_prompt_template()
-
-    return template.format_map({
+    return _get_prompt_template().format_map({
         "now": now,
         "location": location,
         "google_account": google_account,
@@ -65,6 +71,8 @@ def _build_system_prompt() -> str:
 def _count_exchanges(history: list) -> int:
     return sum(1 for m in history if m["role"] == "user")
 
+
+# ── History summarisation ─────────────────────────────────────────────────────
 
 async def _summarize_history(history: list) -> str:
     if not history:
@@ -141,6 +149,200 @@ async def trim_history(history: list) -> list:
     return recent_history
 
 
+# ── Task complexity & planning ────────────────────────────────────────────────
+
+_MULTISTEP_RE = re.compile(
+    r"\b(then|and\s+then|after\s+that|afterwards|next\s*[,;]?"
+    r"|and\s+also|followed\s+by|once\s+(that'?s?\s+)?done"
+    r"|first\s*[,;]|second\s*[,;]|third\s*[,;]|finally\s*[,;]?|lastly"
+    r"|before\s+that|additionally|as\s+well\s+as)\b",
+    re.IGNORECASE,
+)
+
+_PLAN_MIN_WORDS = 12
+
+
+def _is_complex_task(message: str, tool_definitions: list[dict]) -> bool:
+    """
+    True when the task is likely multi-step and benefits from an upfront plan.
+    Requires: long enough message + step connectors + at least 2 available tools.
+    """
+    if len(message.split()) < _PLAN_MIN_WORDS:
+        return False
+    if len(tool_definitions) < 2:
+        return False
+    return bool(_MULTISTEP_RE.search(message))
+
+
+_PLANNER_SYSTEM = (
+    "You are a task planner. Given a user request and a list of available tools, "
+    "output a concise numbered plan (max 6 steps). "
+    "Each step: which tool to call and what to do. "
+    "Be brief — one sentence per step. No preamble, no explanation outside the plan."
+)
+
+
+async def _generate_plan(message: str, tool_definitions: list[dict]) -> str | None:
+    """
+    Lightweight LLM pass that produces a numbered execution plan.
+    Injected into the system prompt so the agent sequences tools correctly.
+    Best-effort — returns None on failure and never blocks execution.
+    """
+    tool_names = ", ".join(t["name"] for t in tool_definitions)
+    prompt = (
+        f"Available tools: {tool_names}\n\n"
+        f"User request: {message}\n\n"
+        "Write a step-by-step plan to complete this request using the tools above."
+    )
+    try:
+        response, _ = await model_router.call_llm(
+            messages=[{"role": "user", "content": prompt}],
+            system=_PLANNER_SYSTEM,
+            tools=[],
+            max_tokens=250,
+        )
+        plan = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
+        logger.info(f"Planner output:\n{plan}")
+        return plan
+    except Exception as e:
+        logger.warning(f"Planner failed (non-fatal): {e}")
+        return None
+
+
+# ── Tool execution ────────────────────────────────────────────────────────────
+
+_TOOL_RETRY_KEYWORDS = (
+    "timeout", "connection", "network", "temporarily", "retry", "503", "502",
+)
+
+
+def _is_retryable(error: str) -> bool:
+    err_lower = error.lower()
+    return any(k in err_lower for k in _TOOL_RETRY_KEYWORDS)
+
+
+async def _execute_tool(tool_name: str, tool_input: dict) -> ToolResult:
+    """Execute a single tool, with one automatic retry on transient failures."""
+    if tool_name not in TOOLS:
+        return ToolResult.fail(f"Tool '{tool_name}' not found")
+
+    tool_data = TOOLS[tool_name]
+    module = importlib.import_module(f"tools.{tool_data['module']}")
+
+    async def _run_once() -> ToolResult:
+        try:
+            raw = await module.execute(**tool_input)
+            if isinstance(raw, tuple):
+                text, fb, fn = raw
+                return ToolResult.ok(text=str(text), file_bytes=fb, filename=fn)
+            return ToolResult.ok(text=str(raw))
+        except Exception as e:
+            return ToolResult.fail(str(e))
+
+    result = await _run_once()
+
+    # One retry on transient errors (timeouts, 502/503s, network blips)
+    if not result.success and _is_retryable(result.error or ""):
+        logger.info(f"Retrying {tool_name} after transient error: {result.error}")
+        await asyncio.sleep(1.5)
+        result = await _run_once()
+        if not result.success:
+            logger.warning(f"Retry failed for {tool_name}: {result.error}")
+
+    return result
+
+
+def _format_tool_result(tool_name: str, result: ToolResult, duration_ms: float) -> str:
+    """
+    Structured result string so the model can reason about success/failure
+    and execution metadata — not just a raw text dump.
+    """
+    status = "success" if result.success else "error"
+    parts = [f"[tool:{tool_name}] [status:{status}] [duration:{duration_ms:.0f}ms]"]
+    if result.success:
+        parts.append(result.text)
+    else:
+        parts.append(f"Error: {result.error}")
+        # Surface partial output if the tool returned something before failing
+        if result.text and result.text != result.error:
+            parts.append(f"Partial output: {result.text}")
+    return "\n".join(parts)
+
+
+async def _execute_tools_parallel(
+    tool_blocks: list,
+) -> tuple[list[dict], list[ToolCallLog], bytes | None, str | None]:
+    """
+    Execute all tool_use blocks from a single model turn concurrently.
+    Independent calls (e.g. "search the web AND check my calendar") run in
+    parallel, cutting wall-clock time proportionally.
+
+    Returns (tool_results_for_messages, tool_calls_log, file_bytes, filename).
+    """
+    async def _handle_one(block):
+        tool_name = block.name
+        tool_input = block.input
+        tc_start = time.monotonic()
+        logger.info(f"Tool call (parallel): {tool_name} | params: {list(tool_input.keys())}")
+
+        result = await _execute_tool(tool_name, tool_input)
+        tc_duration = (time.monotonic() - tc_start) * 1000
+
+        log_entry = ToolCallLog(
+            tool_name=tool_name,
+            input_params=tool_input,
+            result_text=result.text[:500] if result.text else "",
+            success=result.success,
+            duration_ms=tc_duration,
+            error=result.error if not result.success else None,
+        )
+        result_msg = {
+            "type": "tool_result",
+            "tool_use_id": block.id,
+            "content": _format_tool_result(tool_name, result, tc_duration),
+        }
+        return result_msg, log_entry, result
+
+    outcomes = await asyncio.gather(
+        *[_handle_one(b) for b in tool_blocks],
+        return_exceptions=True,
+    )
+
+    tool_results = []
+    tool_call_logs = []
+    file_bytes = None
+    filename = None
+
+    for i, outcome in enumerate(outcomes):
+        if isinstance(outcome, Exception):
+            block = tool_blocks[i]
+            logger.error(f"Unexpected error in parallel tool {block.name}: {outcome}")
+            tool_results.append({
+                "type": "tool_result",
+                "tool_use_id": block.id,
+                "content": f"[tool:{block.name}] [status:error]\nError: {outcome}",
+            })
+            tool_call_logs.append(ToolCallLog(
+                tool_name=block.name,
+                input_params=block.input,
+                result_text="",
+                success=False,
+                duration_ms=0,
+                error=str(outcome),
+            ))
+        else:
+            result_msg, log_entry, result = outcome
+            tool_results.append(result_msg)
+            tool_call_logs.append(log_entry)
+            if result.file_bytes:
+                file_bytes = result.file_bytes
+                filename = result.filename
+
+    return tool_results, tool_call_logs, file_bytes, filename
+
+
+# ── Main agent loop ───────────────────────────────────────────────────────────
+
 async def run(
     user_message: str,
     user_id: int,
@@ -168,7 +370,7 @@ async def run(
     filename = None
     start_time = time.monotonic()
 
-    # ── Tool routing ──
+    # ── Tool routing ──────────────────────────────────────────────────────────
     all_tool_definitions = get_tool_definitions()
     tool_definitions, router_telem = await filter_tools(
         user_message, all_tool_definitions, conversation_history
@@ -191,22 +393,35 @@ async def run(
         f"{[t['name'] for t in tool_definitions]}"
     )
 
-    # ── Build system prompt ──
+    # ── Task planner (multi-step tasks only) ──────────────────────────────────
+    plan_text: str | None = None
+    if tool_definitions and _is_complex_task(user_message, tool_definitions):
+        logger.info("Complex multi-step task detected — generating plan")
+        plan_text = await _generate_plan(user_message, tool_definitions)
+
+    # ── Build system prompt ───────────────────────────────────────────────────
     base_prompt = _build_system_prompt()
 
     if not tool_definitions:
         system_prompt = base_prompt
     else:
         tool_list_str = ", ".join(t["name"] for t in tool_definitions)
-        directive = (
-            f"### ACTIVE TOOLS: {tool_list_str} ###\n"
+        directive_parts = [
+            f"### ACTIVE TOOLS: {tool_list_str} ###",
             "Use the appropriate tool to complete the task. "
             "Call the tool immediately without explanation. "
-            "If the message is purely conversational, respond directly.\n\n"
-        )
-        system_prompt = directive + base_prompt
+            "You may call multiple tools in a single turn when they are independent. "
+            "If the message is purely conversational, respond directly.",
+        ]
+        if plan_text:
+            directive_parts.append(
+                f"\n### EXECUTION PLAN ###\n{plan_text}\n"
+                "Follow this plan step by step. You may parallelise independent steps."
+            )
+        directive_parts.append("")
+        system_prompt = "\n".join(directive_parts) + "\n" + base_prompt
 
-    # ── Agent loop ──
+    # ── Agent loop ────────────────────────────────────────────────────────────
     for iteration in range(max_iterations):
         logger.info(f"Iteration {iteration + 1}/{max_iterations} | user_id={user_id}")
 
@@ -265,44 +480,25 @@ async def run(
             return result
 
         if response.stop_reason == "tool_use":
-            tool_results = []
-            for block in response.content:
-                if block.type != "tool_use":
-                    continue
+            tool_blocks = [b for b in response.content if b.type == "tool_use"]
 
-                tool_name = block.name
-                tool_input = block.input
-                tc_start = time.monotonic()
-                logger.info(f"Tool call: {tool_name} | params: {list(tool_input.keys())}")
+            if not tool_blocks:
+                logger.warning("stop_reason=tool_use but no tool_use blocks found")
+                continue
 
-                try:
-                    tool_result = await _execute_tool(tool_name, tool_input)
-                    if tool_result.file_bytes:
-                        file_bytes = tool_result.file_bytes
-                        filename = tool_result.filename
-                    result_text = tool_result.text
-                    success = tool_result.success
-                    error = tool_result.error
-                except Exception as e:
-                    result_text = f"Tool error: {str(e)}"
-                    success = False
-                    error = str(e)
-                    logger.error(f"Tool {tool_name} raised: {e}", exc_info=True)
+            logger.info(
+                f"Parallel tool execution: {len(tool_blocks)} tool(s) → "
+                f"{[b.name for b in tool_blocks]}"
+            )
 
-                tc_duration = (time.monotonic() - tc_start) * 1000
-                tool_calls_log.append(ToolCallLog(
-                    tool_name=tool_name,
-                    input_params=tool_input,
-                    result_text=result_text[:500],
-                    success=success,
-                    duration_ms=tc_duration,
-                    error=error if not success else None
-                ))
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": result_text
-                })
+            tool_results, turn_logs, turn_file_bytes, turn_filename = (
+                await _execute_tools_parallel(tool_blocks)
+            )
+
+            tool_calls_log.extend(turn_logs)
+            if turn_file_bytes:
+                file_bytes = turn_file_bytes
+                filename = turn_filename
 
             messages.append({"role": "user", "content": tool_results})
 
@@ -318,18 +514,3 @@ async def run(
         success=False,
         error="max_iterations_reached"
     )
-
-
-async def _execute_tool(tool_name: str, tool_input: dict) -> ToolResult:
-    if tool_name not in TOOLS:
-        return ToolResult.fail(f"Tool '{tool_name}' not found")
-    tool_data = TOOLS[tool_name]
-    module = importlib.import_module(f"tools.{tool_data['module']}")
-    try:
-        raw = await module.execute(**tool_input)
-        if isinstance(raw, tuple):
-            text, fb, fn = raw
-            return ToolResult.ok(text=str(text), file_bytes=fb, filename=fn)
-        return ToolResult.ok(text=str(raw))
-    except Exception as e:
-        return ToolResult.fail(str(e))

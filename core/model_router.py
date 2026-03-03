@@ -232,7 +232,13 @@ class ModelRecord:
     priority: int
     max_tokens: int
     enabled: bool
-    is_fallback: bool = False
+    role: str = ""
+    # Role controls which pool this model belongs to:
+    #   ""           → general pool  (Pass 1 round-robin, used by main agent & planner)
+    #   "paid_model" → paid pool     (Pass 2 ultimate fallback, shared by all callers)
+    #   "router"     → router pool   (Tier 2 binary LLM)
+    #   "<anything>" → custom pool   (future features — just set role in models.yaml
+    #                                 and pass role="<anything>" to call_llm)
 
     # Runtime state
     status: str = "available"
@@ -621,7 +627,7 @@ def _load_models():
             priority=m.get("priority", 99),
             max_tokens=m.get("max_tokens", 4096),
             enabled=m.get("enabled", True),
-            is_fallback=m.get("fallback", False),
+            role=m.get("role", ""),
         ))
 
     _models.sort(key=lambda x: x.priority)
@@ -631,8 +637,9 @@ def _load_models():
 
 
 def reload_models():
-    global _global_index
+    global _global_index, _role_indexes
     _global_index = 0
+    _role_indexes = {}
     _load_models()
 
 
@@ -640,20 +647,38 @@ def reload_models():
 # Rotation state
 # ─────────────────────────────────────────────────────────────────────────────
 
+# General pool (role == "") index — shared across all no-role callers.
 _global_index: int = 0
+
+# Per-role round-robin indexes — one entry per distinct role value.
+# Created on first use so new roles need no code changes.
+# e.g. {"router": 2, "my_feature": 0}
+_role_indexes: dict[str, int] = {}
+
 _router_lock = asyncio.Lock()
 
 
-def _pick_next_available(start: int, fallback_only: bool = False) -> tuple["ModelRecord | None", int]:
-    n = len(_models)
+def _pick_next_in_pool(
+    pool: list[ModelRecord],
+    start: int,
+) -> tuple["ModelRecord | None", int]:
+    """Round-robin over an arbitrary pool list starting at index `start`.
+    Returns (model, next_start) or (None, start) if no model is available."""
+    n = len(pool)
     for i in range(n):
         idx = (start + i) % n
-        m = _models[idx]
-        if m.is_fallback != fallback_only:
-            continue
+        m = pool[idx]
         if m.is_available():
             return m, (idx + 1) % n
     return None, start
+
+
+def _pick_next_available(start: int) -> tuple["ModelRecord | None", int]:
+    """Convenience wrapper for the general pool (role == "").
+    Role-tagged models are reserved exclusively for their designated callers
+    and are never touched by the general round-robin."""
+    general_pool = [m for m in _models if not m.role]
+    return _pick_next_in_pool(general_pool, start)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -665,9 +690,33 @@ async def call_llm(
     system: str = "",
     tools: list[dict] | None = None,
     max_tokens: int | None = None,
+    role: str = "",
 ) -> tuple[UnifiedResponse, ModelRecord]:
     """
-    Two-pass model selection with locked round-robin.
+    Role-based three-pass model selection.
+
+    Every model in models.yaml has a `role` field (default: "").
+    Pools are strictly isolated — a model in one pool is never consumed by another.
+
+    Pass 0 — dedicated pool  : models whose role == the requested role.
+                               Round-robins within that role's pool.
+                               5 role='router' models → rotates across all 5,
+                               skipping rate-limited/errored ones.
+                               Falls through only when ALL are exhausted.
+    Pass 1 — general pool    : models with role == "" (no role set).
+                               Round-robin with a global index lock.
+    Pass 2 — paid/final pool : models with role == "paid_model".
+                               Last resort, shared by all callers.
+
+    Adding a new feature that needs its own model:
+        1. Add `role: my_feature` to one or more entries in models.yaml.
+        2. Call call_llm(..., role="my_feature") from your feature code.
+        3. Done — it gets its own pool with automatic Pass 1 → Pass 2 fallback.
+
+    Current roles in use:
+        ""           → main agent, history summariser, task planner
+        "router"     → Tier 2 binary tool router
+        "paid_model" → ultimate fallback for all callers
     """
     global _global_index
 
@@ -701,11 +750,51 @@ async def call_llm(
                 logger.warning(f"{model.name} error ({str(e)[:80]}) — marked, skipping")
             return None
 
-    # ── Pass 1: Free models, locked round-robin ──
-    n_free = sum(1 for m in _models if not m.is_fallback and m.enabled)
-    for _ in range(n_free):
+    # ── Pass 0: Dedicated role pool — per-role round-robin ──────────────────────
+    # Every distinct role gets its own rotation index (_role_indexes[role]).
+    # With 5 role="router" models, calls rotate router-1 → router-2 → … → router-5
+    # → router-1, skipping any that are rate-limited or errored.
+    # Only when ALL models in the role pool are exhausted does it fall through.
+    if role and role != "paid_model":   # paid_model is always Pass 2, never Pass 0
+        role_pool = [m for m in _models if m.role == role and m.enabled]
+        if role_pool:
+            async with _router_lock:
+                start = _role_indexes.get(role, 0)
+                model, next_idx = _pick_next_in_pool(role_pool, start)
+                _role_indexes[role] = next_idx
+
+            if model is not None:
+                response = await _try_model(model)
+                if response is not None:
+                    return response, model
+
+                # First pick failed — try remaining models in the pool
+                for _ in range(len(role_pool) - 1):
+                    async with _router_lock:
+                        start = _role_indexes.get(role, 0)
+                        model, next_idx = _pick_next_in_pool(role_pool, start)
+                        _role_indexes[role] = next_idx
+                    if model is None:
+                        break
+                    response = await _try_model(model)
+                    if response is not None:
+                        return response, model
+
+            logger.warning(
+                f"All {len(role_pool)} role='{role}' model(s) exhausted "
+                f"— falling through to general pool"
+            )
+        else:
+            logger.warning(
+                f"No models configured with role='{role}' "
+                f"— falling through to general pool"
+            )
+
+    # ── Pass 1: General pool — locked round-robin (role == "") ──────────────────
+    n_general = sum(1 for m in _models if not m.role and m.enabled)
+    for _ in range(n_general):
         async with _router_lock:
-            model, next_idx = _pick_next_available(_global_index, fallback_only=False)
+            model, next_idx = _pick_next_available(_global_index)
             if model is None:
                 break
             _global_index = next_idx
@@ -714,19 +803,13 @@ async def call_llm(
         if response is not None:
             return response, model
 
-    # ── Pass 2: Fallback models ──
-    logger.warning("All free models exhausted — switching to fallback")
-    fallback_idx = 0
-    n_fallback = sum(1 for m in _models if m.is_fallback and m.enabled)
-    for _ in range(n_fallback):
-        async with _router_lock:
-            model, fallback_idx = _pick_next_available(fallback_idx, fallback_only=True)
-            if model is None:
-                break
-
-        response = await _try_model(model)
-        if response is not None:
-            return response, model
+    # ── Pass 2: Paid pool — ultimate fallback (role == "paid_model") ────────────
+    logger.warning("All general-pool models exhausted — switching to paid pool")
+    for m in _models:
+        if m.role == "paid_model" and m.enabled and m.is_available():
+            response = await _try_model(m)
+            if response is not None:
+                return response, m
 
     raise RuntimeError(
         "All models exhausted including fallback. "
@@ -740,7 +823,7 @@ def get_all_model_status() -> list[dict]:
         "provider": m.provider,
         "model_id": m.model_id,
         "priority": m.priority,
-        "is_fallback": m.is_fallback,
+        "role": m.role,
         "status": m.status,
         "rate_limit_reset_at": m.rate_limit_reset_at,
         "consecutive_errors": m.consecutive_errors,
@@ -766,7 +849,7 @@ def get_model_rate_limit_status() -> list[dict]:
             "model_id": m.model_id,
             "provider": m.provider,
             "priority": m.priority,
-            "is_fallback": m.is_fallback,
+            "role": m.role,
             "status": m.status,
             "rate_limit_reset_at": m.rate_limit_reset_at,
             "total_calls": m.total_calls,

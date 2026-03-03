@@ -1875,3 +1875,24 @@
 {"ts": "2026-03-01T06:16:52.430533", "level": "INFO", "logger": "app.agent", "msg": "Model: gemini-oraparamlej | stop: end_turn | tokens in=1107 out=31"}
 {"ts": "2026-03-01T06:16:52.452015", "level": "INFO", "logger": "app.agent", "msg": "Run complete | user=6967671873 | model=gemini-oraparamlej | iterations=3 | tokens=3156in+155out | duration=14856ms | history_len=12"}
 {"ts": "2026-03-01T06:22:18.069778", "level": "INFO", "logger": "app.agent", "msg": "tool_router reloaded after dashboard edit"}
+{"ts": "2026-03-03T11:30:29.907107", "level": "INFO", "logger": "app.agent", "msg": "Logging initialized"}
+{"ts": "2026-03-03T11:31:07.158478", "level": "INFO", "logger": "app.agent", "msg": "Logging initialized"}
+{"ts": "2026-03-03T11:31:11.237827", "level": "INFO", "logger": "app.agent", "msg": "Messaging platform started: telegram"}
+{"ts": "2026-03-03T11:31:11.294929", "level": "INFO", "logger": "app.monitor_db", "msg": "Monitor DB tables initialized"}
+{"ts": "2026-03-03T11:31:11.300915", "level": "INFO", "logger": "app.monitor_engine", "msg": "Monitor engine started \u2014 0 active monitor(s)"}
+{"ts": "2026-03-03T11:31:11.303667", "level": "INFO", "logger": "app.cron_manager", "msg": "Cron manager started \u2014 0 active job(s)"}
+{"ts": "2026-03-03T11:31:11.303932", "level": "INFO", "logger": "app.scheduler", "msg": "\u2705 Proactive agent scheduler fully started"}
+{"ts": "2026-03-03T11:31:11.304145", "level": "INFO", "logger": "app.agent", "msg": "Token expiry watcher started"}
+{"ts": "2026-03-03T11:35:05.926420", "level": "INFO", "logger": "app.monitor_engine", "msg": "Monitor engine stopped"}
+{"ts": "2026-03-03T11:35:05.927429", "level": "INFO", "logger": "app.cron_manager", "msg": "Cron manager stopped"}
+{"ts": "2026-03-03T11:35:05.928050", "level": "INFO", "logger": "app.scheduler", "msg": "Scheduler stopped"}
+{"ts": "2026-03-03T11:35:10.522894", "level": "INFO", "logger": "app.agent", "msg": "Logging initialized"}
+{"ts": "2026-03-03T11:35:13.319895", "level": "INFO", "logger": "app.agent", "msg": "Messaging platform started: telegram"}
+{"ts": "2026-03-03T11:35:13.328091", "level": "INFO", "logger": "app.monitor_db", "msg": "Monitor DB tables initialized"}
+{"ts": "2026-03-03T11:35:13.335811", "level": "INFO", "logger": "app.monitor_engine", "msg": "Monitor engine started \u2014 0 active monitor(s)"}
+{"ts": "2026-03-03T11:35:13.341140", "level": "INFO", "logger": "app.cron_manager", "msg": "Cron manager started \u2014 0 active job(s)"}
+{"ts": "2026-03-03T11:35:13.341570", "level": "INFO", "logger": "app.scheduler", "msg": "\u2705 Proactive agent scheduler fully started"}
+{"ts": "2026-03-03T11:35:13.342001", "level": "INFO", "logger": "app.agent", "msg": "Token expiry watcher started"}
+{"ts": "2026-03-03T11:38:52.420571", "level": "INFO", "logger": "app.monitor_engine", "msg": "Monitor engine stopped"}
+{"ts": "2026-03-03T11:38:52.421612", "level": "INFO", "logger": "app.cron_manager", "msg": "Cron manager stopped"}
+{"ts": "2026-03-03T11:38:52.422640", "level": "INFO", "logger": "app.scheduler", "msg": "Scheduler stopped"}
